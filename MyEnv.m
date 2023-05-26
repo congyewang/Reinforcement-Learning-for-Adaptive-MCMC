@@ -36,7 +36,7 @@ classdef MyEnv < rl.env.MATLABEnvironment
             this.sigma = Action;
 
             pdf = @(x) normpdf(x, 4, 1);
-            proprnd = @(x) x + this.sigma * randn(1, 1);
+            proprnd = @(x) x + abs(this.sigma) * randn(1, 1);
             xt = mhsample(this.State,this.nsamples,'pdf',pdf,'proprnd',proprnd,'symmetric',this.epsilon);
 
             % Update Obs
@@ -44,8 +44,11 @@ classdef MyEnv < rl.env.MATLABEnvironment
             this.OldState = this.State; % Save s_{t-1}
             this.State = xt; % Update xt in this state
 
+            % Print State
+            fprintf('State: %.4f\tAction: %.4f\n', this.State, this.sigma);
+
             % Calculate Reward
-            Reward = pdist2(this.State - this.OldState);
+            Reward = norm(this.State - this.OldState, 2);
 
             % Update Iteration Time
             this.Ts = this.Ts + 1;
