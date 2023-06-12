@@ -2,7 +2,6 @@ classdef MyEnv < rl.env.MATLABEnvironment
     properties
         % Parameter
         sigma = 1;
-        epsilon = 0.01;
         nsamples = 1;
         MaxSteps = 100;
         Reward = 0;
@@ -41,15 +40,14 @@ classdef MyEnv < rl.env.MATLABEnvironment
 
             pdf = @(x) normpdf(x, 4, 1);
             proprnd = @(x) x + this.sigma * randn(1, 1);
-            xt = mhsample(this.State,this.nsamples,'pdf',pdf,'proprnd',proprnd,'symmetric',this.epsilon);
+            xt = mhsample(this.State,this.nsamples,'pdf',pdf,'proprnd',proprnd,'symmetric',1);
 
             % Update Obs
             NextObs = xt;
             this.OldState = this.State; % Save s_{t-1}
             this.State = xt; % Update xt in this state
 
-            % Print State
-            % fprintf('State: %.4f\tAction: %.4f\n', this.State, this.sigma);
+            % Store
             this.StoreState{end+1} = xt;
             this.StoreAction{end+1} = this.sigma;
 
@@ -69,8 +67,8 @@ classdef MyEnv < rl.env.MATLABEnvironment
 
         function obs = reset(this)
             this.Ts = 0;
-            this.State = 0; % initialize s_{t}
-            this.OldState = 0; % initialize s_{t-1}
+            this.State = 10*rand(1); % initialize s_{t}
+            this.OldState = this.State; % initialize s_{t-1}
             obs = this.State;
         end
     end

@@ -67,3 +67,9 @@ trainOpts = rlTrainingOptions(...
 
 % Training
 trainingStats = train(agent,env,trainOpts);
+
+% Save
+save('trained_agent.mat', 'agent');
+
+% Load
+% load('trained_agent.mat');
