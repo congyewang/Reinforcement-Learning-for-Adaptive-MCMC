@@ -1,3 +1,6 @@
+clc;
+clear;
+
 % Create Env
 env = MyEnv();
 
