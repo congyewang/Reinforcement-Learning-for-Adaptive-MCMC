@@ -20,7 +20,7 @@ ylabel('t');
 title('Action Plot');
 
 % Generate action using the trained actor
-states = -5:0.1:5;
+states = -100:0.1:100;
 actions = zeros(size(states));
 % StorePolicy = {};
 % for i = -50:0.1:50

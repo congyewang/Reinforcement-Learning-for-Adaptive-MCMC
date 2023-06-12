@@ -161,3 +161,6 @@ cython_debug/
 
 # Stable Baseline3
 *.zip
+
+# Matlab
+*.mat

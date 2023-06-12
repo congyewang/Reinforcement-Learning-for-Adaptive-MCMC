@@ -3,7 +3,7 @@ classdef MyEnv < rl.env.MATLABEnvironment
         % Parameter
         sigma = 1;
         nsamples = 1;
-        MaxSteps = 100;
+        MaxSteps = 256;
         Reward = 0;
         Ts = 0; % iteration time
         State = 0; % state at this time, s_{t}
@@ -67,8 +67,8 @@ classdef MyEnv < rl.env.MATLABEnvironment
 
         function obs = reset(this)
             this.Ts = 0;
-            this.State = 10*rand(1); % initialize s_{t}
-            this.OldState = this.State; % initialize s_{t-1}
+            this.State = 0; % initialize s_{t}
+            this.OldState = 0; % initialize s_{t-1}
             obs = this.State;
         end
     end
