@@ -14,7 +14,8 @@ statePath = [
     fullyConnectedLayer(24,'Name','C')
     reluLayer('Name','relu1')
     fullyConnectedLayer(24,'Name','C2')
-    reluLayer('Name','relu2')
+    % reluLayer('Name','relu2')
+    eluLayer('Name','elu2')
     fullyConnectedLayer(1,'Name','Act') % !!!Make sure the name here matches the action name
     ];
 actorNetwork = layerGraph(statePath);
@@ -36,7 +37,8 @@ actionPath = [
     reluLayer('Name','CReluAction')];
 commonPath = [
     additionLayer(2,'Name','add')
-    reluLayer('Name','CReluCommon')
+    % reluLayer('Name','CReluCommon')
+    eluLayer('Name','CReluCommon')
     fullyConnectedLayer(1,'Name','QValue')];
 
 criticNetwork = layerGraph(statePath);
@@ -59,7 +61,7 @@ agent = rlDDPGAgent(actor, critic, agentOptions);
 
 % Set Training Options
 trainOpts = rlTrainingOptions(...
-    MaxEpisodes=1000, ...
+    MaxEpisodes=1, ...
     MaxStepsPerEpisode=env.MaxSteps, ...
     ScoreAveragingWindowLength=5, ...
     Verbose=false, ...

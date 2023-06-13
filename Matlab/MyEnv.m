@@ -3,7 +3,7 @@ classdef MyEnv < rl.env.MATLABEnvironment
         % Parameter
         sigma = 1;
         nsamples = 1;
-        MaxSteps = 256;
+        MaxSteps = 100;
         Reward = 0;
         Ts = 0; % iteration time
         State = 0; % state at this time, s_{t}
@@ -38,7 +38,7 @@ classdef MyEnv < rl.env.MATLABEnvironment
             % Update Action
             this.sigma = Action;
 
-            pdf = @(x) normpdf(x, 4, 1);
+            pdf = @(x) 0.3*normpdf(x, 4, 1) + 0.7*normpdf(x, -5, 3);
             proprnd = @(x) x + this.sigma * randn(1, 1);
             xt = mhsample(this.State,this.nsamples,'pdf',pdf,'proprnd',proprnd,'symmetric',1);
 
@@ -67,8 +67,8 @@ classdef MyEnv < rl.env.MATLABEnvironment
 
         function obs = reset(this)
             this.Ts = 0;
-            this.State = 0; % initialize s_{t}
-            this.OldState = 0; % initialize s_{t-1}
+            this.State = this.State; % initialize s_{t}
+            this.OldState = this.State; % initialize s_{t-1}
             obs = this.State;
         end
     end

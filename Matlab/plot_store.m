@@ -1,3 +1,6 @@
+% Load
+% load('trained_agent.mat');
+
 % Plot MCMC Chain
 figure;
 plot(cell2mat(env.StoreState));
@@ -20,7 +23,7 @@ ylabel('t');
 title('Action Plot');
 
 % Generate action using the trained actor
-states = -100:0.1:100;
+states = -15:0.1:10;
 actions = zeros(size(states));
 % StorePolicy = {};
 % for i = -50:0.1:50
