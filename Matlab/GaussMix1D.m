@@ -1,13 +1,14 @@
-classdef MyEnv < rl.env.MATLABEnvironment
+classdef GaussMix1D < rl.env.MATLABEnvironment
     properties
         % Parameter
-        sigma2 = eye(2);
+        sigma = 1;
+        epsilon = 0.01;
         nsamples = 1;
-        MaxSteps = 500;
+        MaxSteps = 100;
         Reward = 0;
         Ts = 0; % iteration time
-        State = zeros(2,1); % state at this time, s_{t}
-        OldState = zeros(2,1); % state at previous state, s_{t-1}
+        State = 0; % state at this time, s_{t}
+        OldState = 0; % state at previous state, s_{t-1}
 
         % Store
         StoreState = {};
@@ -15,14 +16,14 @@ classdef MyEnv < rl.env.MATLABEnvironment
     end
 
     methods
-        function this = MyEnv()
+        function this = GaussMix1D()
             % Observation specification
-            ObservationInfo = rlNumericSpec([2 1]);
+            ObservationInfo = rlNumericSpec([1 1]);
             ObservationInfo.Name = 'Obs';
             ObservationInfo.Description = 'Description of the observation';
 
             % Action specification
-            ActionInfo = rlNumericSpec([3 1],'LowerLimit',-inf*ones(3,1),'UpperLimit',inf*ones(3,1));
+            ActionInfo = rlNumericSpec([1 1],'LowerLimit',0,'UpperLimit',inf);
             ActionInfo.Name = 'Act';
 
             % The following line implements built-in functions of rl.env.VariantEnv
@@ -36,27 +37,22 @@ classdef MyEnv < rl.env.MATLABEnvironment
             LoggedSignals = [];
 
             % Update Action
-            a = Action(1);
-            b = Action(2);
-            c = Action(3);
-            this.sigma2 = [a^2, 0; b, c^2] * [a^2, b; 0, c^2];
+            this.sigma = Action;
 
-            % Define the banana distribution
-            pdf = @(x) exp(-100*(x(2)-x(1)^2)^2-(1-x(1))^2);
-            proprnd = @(x) mvnrnd(x, this.sigma2, 1);
-            xt = mhsample(this.State.',this.nsamples,'pdf',pdf,'proprnd',proprnd,'symmetric',1);
+            pdf = @(x) 0.3*normpdf(x, 4, 1) + 0.7*normpdf(x, -5, 3);
+            proprnd = @(x) x + this.sigma * randn(1, 1);
+            xt = mhsample(this.State,this.nsamples,'pdf',pdf,'proprnd',proprnd,'symmetric',this.epsilon);
 
             % Update Obs
-            NextObs = xt.';
+            NextObs = xt;
             this.OldState = this.State; % Save s_{t-1}
-            this.State = xt.'; % Update xt in this state
+            this.State = xt; % Update xt in this state
 
             % Print State
             % fprintf('State: %.4f\tAction: %.4f\n', this.State, this.sigma);
-            this.StoreState{end+1} = xt.';
-            this.StoreAction{end+1} = this.sigma2;
-            disp(this.sigma2);
-    
+            this.StoreState{end+1} = xt;
+            this.StoreAction{end+1} = this.sigma;
+
             % Calculate Reward
             Reward = norm(this.State - this.OldState, 2)^2;
 
@@ -64,13 +60,17 @@ classdef MyEnv < rl.env.MATLABEnvironment
             this.Ts = this.Ts + 1;
 
             % Check for Completion
-            IsDone = false;
+            IsDone = this.Ts >= this.MaxSteps;
+
+            if IsDone
+                this.reset();
+            end
         end
 
         function obs = reset(this)
             this.Ts = 0;
-            % this.State = zeros(2,1); % initialize s_{t}
-            % this.OldState = zeros(2,1); % initialize s_{t-1}
+            this.State = 0; % initialize s_{t}
+            this.OldState = 0; % initialize s_{t-1}
             obs = this.State;
         end
     end

@@ -10,33 +10,34 @@ actInfo = getActionInfo(env);
 
 % Create an actor representation, which is a simple neural network from observation to action
 statePath = [
-    featureInputLayer(2,'Normalization','none','Name','State')
+    featureInputLayer(1,'Normalization','none','Name','State')
     fullyConnectedLayer(24,'Name','C')
     reluLayer('Name','relu1')
     fullyConnectedLayer(24,'Name','C2')
+    % reluLayer('Name','relu2')
     eluLayer('Name','elu2')
-    fullyConnectedLayer(3,'Name','Act') % !!!Make sure the name here matches the action name
+    fullyConnectedLayer(1,'Name','Act') % !!!Make sure the name here matches the action name
     ];
 actorNetwork = layerGraph(statePath);
 
 % Defining Actor Options
 actorOptions = rlRepresentationOptions('LearnRate',1e-04,'GradientThreshold',1);
-% actorOptions.UseDevice = "gpu";
 
 % Defining Actor
 actor = rlDeterministicActorRepresentation(actorNetwork, obsInfo, actInfo, 'Observation', {'State'}, 'Action', {'Act'}, actorOptions);
 
 % Created by Critic to represent a simple fully connected neural network
 statePath = [
-    featureInputLayer(2,'Normalization','none','Name','State')
+    featureInputLayer(1,'Normalization','none','Name','State')
     fullyConnectedLayer(24,'Name','CState')
     reluLayer('Name','CReluState')];
 actionPath = [
-    featureInputLayer(3,'Normalization','none','Name','Action')
+    featureInputLayer(1,'Normalization','none','Name','Action')
     fullyConnectedLayer(24,'Name','CAction')
     reluLayer('Name','CReluAction')];
 commonPath = [
     additionLayer(2,'Name','add')
+    % reluLayer('Name','CReluCommon')
     eluLayer('Name','CReluCommon')
     fullyConnectedLayer(1,'Name','QValue')];
 
@@ -48,7 +49,6 @@ criticNetwork = connectLayers(criticNetwork, 'CReluAction', 'add/in2');
 
 % Defining the Critic option
 criticOpts = rlRepresentationOptions('LearnRate',1e-03,'GradientThreshold',1);
-% criticOpts.UseDevice = "gpu";
 
 % Create a Critic representation
 critic = rlQValueRepresentation(criticNetwork, obsInfo, actInfo, 'Observation',{'State'}, 'Action',{'Action'}, criticOpts);
@@ -61,10 +61,8 @@ agent = rlDDPGAgent(actor, critic, agentOptions);
 
 % Set Training Options
 trainOpts = rlTrainingOptions(...
-    MaxEpisodes=1000, ...
-    StopTrainingValue = 1000, ...
+    MaxEpisodes=10, ...
     MaxStepsPerEpisode=env.MaxSteps, ...
-    StopTrainingCriteria='EpisodeCount',...
     ScoreAveragingWindowLength=5, ...
     Verbose=false, ...
     Plots='training-progress');
