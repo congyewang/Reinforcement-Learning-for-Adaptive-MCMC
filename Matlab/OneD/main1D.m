@@ -2,7 +2,7 @@ clc;
 clear;
 
 % Create Env
-env = Gauss1D();
+env = MyEnv();
 
 % Obtaining the information of observation and action from the environment
 obsInfo = getObservationInfo(env);
@@ -61,16 +61,15 @@ agent = rlDDPGAgent(actor, critic, agentOptions);
 
 % Set Training Options
 trainOpts = rlTrainingOptions(...
-    MaxEpisodes=500, ...
-    StopTrainingValue=500, ...
+    MaxEpisodes=10, ...
     MaxStepsPerEpisode=env.MaxSteps, ...
-    StopTrainingCriteria='EpisodeCount', ...
     ScoreAveragingWindowLength=5, ...
     Verbose=false, ...
     Plots='training-progress');
 
 % Training
 trainingStats = train(agent,env,trainOpts);
+
 % Save
 save('trained_agent.mat', 'agent');
 

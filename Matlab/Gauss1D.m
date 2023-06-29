@@ -1,18 +1,16 @@
 classdef Gauss1D < rl.env.MATLABEnvironment
     properties
         % Parameter
-        sigma = 1;
-        epsilon = 0.01;
-        nsamples = 1;
-        MaxSteps = 100;
-        Reward = 0;
+        sigma = 1.0;
+        MaxSteps = 1000;
+        Reward = 0.0;
         Ts = 0; % iteration time
-        State = 0; % state at this time, s_{t}
-        OldState = 0; % state at previous state, s_{t-1}
+        State = 0.0; % state at this time, s_{t}
+        OldState = 0.0; % state at previous state, s_{t-1}
 
         % Store
-        StoreState = {};
-        StoreAction = {};
+        StoreState = {0.0};
+        StoreAction = {1.0};
     end
 
     methods
@@ -23,7 +21,7 @@ classdef Gauss1D < rl.env.MATLABEnvironment
             ObservationInfo.Description = 'Description of the observation';
 
             % Action specification
-            ActionInfo = rlNumericSpec([1 1],'LowerLimit',0,'UpperLimit',inf);
+            ActionInfo = rlNumericSpec([1 1],'LowerLimit',-inf,'UpperLimit',inf);
             ActionInfo.Name = 'Act';
 
             % The following line implements built-in functions of rl.env.VariantEnv
@@ -38,10 +36,16 @@ classdef Gauss1D < rl.env.MATLABEnvironment
 
             % Update Action
             this.sigma = Action;
+            
+            disp(Action);
 
-            pdf = @(x) normpdf(x, 4, 1);
-            proprnd = @(x) x + this.sigma * randn(1, 1);
-            xt = mhsample(this.State,this.nsamples,'pdf',pdf,'proprnd',proprnd,'symmetric',this.epsilon);
+            logpdf = @(x) log(normpdf(x, 4, 1));
+            % xt = mhsample(this.State,this.nsamples,'pdf',pdf,'proprnd',proprnd,'symmetric',this.epsilon);
+            sigma2_curr = (this.StoreAction{end})^2;
+            sigma2_prop = Action^2;
+            % xt = asymmetric1D(sigma2_curr, this.sigma^2, this.State, logpdf);
+            % proprnd = @(x) x + abs(this.sigma) * randn(1, 1);
+            xt = rwm(sigma2_curr, sigma2_prop, this.State, logpdf, 1);
 
             % Update Obs
             NextObs = xt;
@@ -69,8 +73,9 @@ classdef Gauss1D < rl.env.MATLABEnvironment
 
         function obs = reset(this)
             this.Ts = 0;
-            this.State = 0; % initialize s_{t}
-            this.OldState = 0; % initialize s_{t-1}
+            [~, maxIndex] = max(cell2mat(this.StoreState));
+            this.State = this.StoreState{maxIndex}; % initialize s_{t}
+            this.OldState = this.StoreState{maxIndex}; % initialize s_{t-1}
             obs = this.State;
         end
     end

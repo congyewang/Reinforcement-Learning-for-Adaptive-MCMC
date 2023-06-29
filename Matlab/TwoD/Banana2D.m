@@ -1,28 +1,28 @@
-classdef MyEnv < rl.env.MATLABEnvironment
+classdef Banana2D < rl.env.MATLABEnvironment
     properties
         % Parameter
         sigma2 = eye(2);
-        MaxSteps = 5000;
+        nsamples = 1;
+        MaxSteps = 100;
         Reward = 0;
         Ts = 0; % iteration time
         State = zeros(2,1); % state at this time, s_{t}
         OldState = zeros(2,1); % state at previous state, s_{t-1}
 
         % Store
-        StoreState = {zeros(2,1)};
-        StoreAction = {eye(2)};
-        StoreAcceptedStatus = {1};
+        StoreState = {};
+        StoreAction = {};
     end
 
     methods
-        function this = MyEnv()
+        function this = Banana2D()
             % Observation specification
             ObservationInfo = rlNumericSpec([2 1]);
             ObservationInfo.Name = 'Obs';
             ObservationInfo.Description = 'Description of the observation';
 
             % Action specification
-            ActionInfo = rlNumericSpec([2 1],'LowerLimit',-inf*ones(2,1),'UpperLimit',inf*ones(2,1));
+            ActionInfo = rlNumericSpec([3 1],'LowerLimit',-inf*ones(3,1),'UpperLimit',inf*ones(3,1));
             ActionInfo.Name = 'Act';
 
             % The following line implements built-in functions of rl.env.VariantEnv
@@ -37,27 +37,28 @@ classdef MyEnv < rl.env.MATLABEnvironment
 
             % Update Action
             a = Action(1);
-            c = Action(2);
-            this.sigma2 = [a, 0; 0, c] * [a, 0; 0, c];
+            b = Action(2);
+            c = Action(3);
+            this.sigma2 = [a, 0; b, c] * [a, b; 0, c];
 
             % Define the banana distribution
-            logpdf = @(x) log(mvnpdf(x, [0,0], eye(2)));
-            sigma2_curr = this.StoreAction{end};
-            [xtT,accepted_status] = rwm(sigma2_curr, this.sigma2, this.State.', logpdf, 1);
-            xt = xtT.';
+            % pdf = @(x) exp(-100*(x(2)-x(1)^2)^2-(1-x(1))^2);
+            logpdf = @(x) -5*(x(2)-x(1)^2)^2-(-x(1))^2;
+            % proprnd = @(x) mvnrnd(x, this.sigma2, 1);
+            proprnd = @(x) mvnrnd(x, this.sigma2, 1);
+            xt = mhsample(this.State.',this.nsamples,'logpdf',logpdf,'proprnd',proprnd,'symmetric',1);
 
-            this.StoreAcceptedStatus{end+1} = accepted_status;
             % Update Obs
-            NextObs = xt;
+            NextObs = xt.';
             this.OldState = this.State; % Save s_{t-1}
-            this.State = xt; % Update xt in this state
+            this.State = xt.'; % Update xt in this state
 
             % Print State
             % fprintf('State: %.4f\tAction: %.4f\n', this.State, this.sigma);
-            this.StoreState{end+1} = xt;
+            this.StoreState{end+1} = xt.';
             this.StoreAction{end+1} = this.sigma2;
             disp(this.sigma2);
-
+    
             % Calculate Reward
             Reward = norm(this.State - this.OldState, 2)^2;
 
@@ -65,20 +66,13 @@ classdef MyEnv < rl.env.MATLABEnvironment
             this.Ts = this.Ts + 1;
 
             % Check for Completion
-            IsDone = this.Ts >= this.MaxSteps;
-
-            if IsDone
-                this.reset();
-            end
+            IsDone = false;
         end
 
         function obs = reset(this)
             this.Ts = 0;
-            % [~, maxIndex] = max(cell2mat(this.StoreState));
-            % this.State = this.StoreState{maxIndex}; % initialize s_{t}
-            % this.OldState = this.StoreState{maxIndex}; % initialize s_{t-1}
-            this.State = zeros(2,1);
-            this.OldState = zeros(2,1);
+            % this.State = zeros(2,1); % initialize s_{t}
+            % this.OldState = zeros(2,1); % initialize s_{t-1}
             obs = this.State;
         end
     end

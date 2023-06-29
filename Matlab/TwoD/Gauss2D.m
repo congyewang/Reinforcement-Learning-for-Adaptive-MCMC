@@ -1,8 +1,8 @@
-classdef MyEnv < rl.env.MATLABEnvironment
+classdef Gauss2D < rl.env.MATLABEnvironment
     properties
         % Parameter
         sigma2 = eye(2);
-        MaxSteps = 5000;
+        MaxSteps = 500;
         Reward = 0;
         Ts = 0; % iteration time
         State = zeros(2,1); % state at this time, s_{t}
@@ -15,14 +15,14 @@ classdef MyEnv < rl.env.MATLABEnvironment
     end
 
     methods
-        function this = MyEnv()
+        function this = Gauss2D()
             % Observation specification
             ObservationInfo = rlNumericSpec([2 1]);
             ObservationInfo.Name = 'Obs';
             ObservationInfo.Description = 'Description of the observation';
 
             % Action specification
-            ActionInfo = rlNumericSpec([2 1],'LowerLimit',-inf*ones(2,1),'UpperLimit',inf*ones(2,1));
+            ActionInfo = rlNumericSpec([3 1],'LowerLimit',-inf*ones(3,1),'UpperLimit',inf*ones(3,1));
             ActionInfo.Name = 'Act';
 
             % The following line implements built-in functions of rl.env.VariantEnv
@@ -37,8 +37,9 @@ classdef MyEnv < rl.env.MATLABEnvironment
 
             % Update Action
             a = Action(1);
-            c = Action(2);
-            this.sigma2 = [a, 0; 0, c] * [a, 0; 0, c];
+            b = Action(2);
+            c = Action(3);
+            this.sigma2 = [a, 0; b, c] * [a, b; 0, c];
 
             % Define the banana distribution
             logpdf = @(x) log(mvnpdf(x, [0,0], eye(2)));
@@ -74,11 +75,9 @@ classdef MyEnv < rl.env.MATLABEnvironment
 
         function obs = reset(this)
             this.Ts = 0;
-            % [~, maxIndex] = max(cell2mat(this.StoreState));
-            % this.State = this.StoreState{maxIndex}; % initialize s_{t}
-            % this.OldState = this.StoreState{maxIndex}; % initialize s_{t-1}
-            this.State = zeros(2,1);
-            this.OldState = zeros(2,1);
+            [~, maxIndex] = max(cell2mat(this.StoreState));
+            this.State = this.StoreState{maxIndex}; % initialize s_{t}
+            this.OldState = this.StoreState{maxIndex}; % initialize s_{t-1}
             obs = this.State;
         end
     end

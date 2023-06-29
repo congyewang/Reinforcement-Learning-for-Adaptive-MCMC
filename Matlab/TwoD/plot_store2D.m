@@ -1,8 +1,6 @@
 % Load
 % load('trained_agent.mat');
 
-acc = sum(cell2mat(env.StoreAcceptedStatus))/length(env.StoreAcceptedStatus);
-
 %% Plot MCMC Chain
 figure;
 stored_states = cell2mat(env.StoreState);
@@ -11,8 +9,7 @@ x2 = stored_states(2,:);
 plot(x1, x2);
 xlabel('x1');
 ylabel('x2');
-titleText = sprintf('Trace Plot (acc=%f)', acc);
-title(titleText);
+title('Trace Plot');
 
 %% Plot MCMC Chain 3D
 figure;
@@ -78,10 +75,9 @@ for i = 1:numel(s0)
         formatted_state = {[s0(i);s1(j)]};
         actions = cell2mat(getAction(agent, formatted_state));
         a = actions(1);
-        % b = actions(2);
-        c = actions(2);
-        % sigma2 = [a, b; 0, c] * [a, 0; b, c];
-        sigma2 = [a, 0; 0, c] * [a, 0; 0, c];
+        b = actions(2);
+        c = actions(3);
+        sigma2 = [a, b; 0, c] * [a, 0; b, c];
 trace_sigma2(i,j) = trace(sigma2);
         X(i,j) = s0(i);
         Y(i,j) = s1(j);

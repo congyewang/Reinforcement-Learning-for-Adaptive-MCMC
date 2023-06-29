@@ -12,10 +12,12 @@ actInfo = getActionInfo(env);
 statePath = [
     featureInputLayer(2,'Normalization','none','Name','State')
     fullyConnectedLayer(24,'Name','C')
-    reluLayer('Name','relu1')
-    fullyConnectedLayer(24,'Name','C2')
-    eluLayer('Name','elu2')
-    fullyConnectedLayer(3,'Name','Act') % !!!Make sure the name here matches the action name
+    % reluLayer('Name','relu1')
+    % fullyConnectedLayer(24,'Name','C2')
+    % reluLayer('Name','relu2')
+    % fullyConnectedLayer(24,'Name','C3')
+    % eluLayer('Name','elu2')
+    fullyConnectedLayer(2,'Name','Act') % !!!Make sure the name here matches the action name
     ];
 actorNetwork = layerGraph(statePath);
 
@@ -32,7 +34,7 @@ statePath = [
     fullyConnectedLayer(24,'Name','CState')
     reluLayer('Name','CReluState')];
 actionPath = [
-    featureInputLayer(3,'Normalization','none','Name','Action')
+    featureInputLayer(2,'Normalization','none','Name','Action')
     fullyConnectedLayer(24,'Name','CAction')
     reluLayer('Name','CReluAction')];
 commonPath = [
@@ -59,21 +61,28 @@ agentOptions = rlDDPGAgentOptions('SampleTime', 1.0, 'DiscountFactor', 0.99, 'Mi
 % Create an Agent
 agent = rlDDPGAgent(actor, critic, agentOptions);
 
+% Fprmat Saved Folder's Name
+FormattedCurrentTime =char(datetime('now','Format','yyyyMMddHHmmSS'));
+
+saveAgentDirectory = strrep("savedAgents\run1\Agents", "run1", "run"+FormattedCurrentTime);
+
 % Set Training Options
 trainOpts = rlTrainingOptions(...
-    MaxEpisodes=1000, ...
-    StopTrainingValue = 1000, ...
+    MaxEpisodes=50, ...
+    StopTrainingValue = 50, ...
     MaxStepsPerEpisode=env.MaxSteps, ...
     StopTrainingCriteria='EpisodeCount',...
     ScoreAveragingWindowLength=5, ...
     Verbose=false, ...
-    Plots='training-progress');
+    Plots='training-progress', ...
+    SaveAgentCriteria='AverageReward', ...
+    SaveAgentDirectory=saveAgentDirectory);
 
 % Training
 trainingStats = train(agent,env,trainOpts);
 
 % Save
-save('trained_agent.mat', 'agent');
+% save('trained_agent.mat', 'agent');
 
 % Load
 % load('trained_agent.mat');
