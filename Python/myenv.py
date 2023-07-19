@@ -31,7 +31,7 @@ class MyEnv(gym.Env):
         self.store_reward = [0.0]
 
     def step(self, action, policy_cov_func):
-        cov_curr = action**2
+        cov_curr = action
 
         # MCMC Environment
         state_curr, accepted_status = env_mh(theta_curr=self.state, cov_curr=cov_curr, policy_cov_func=policy_cov_func, log_p=self.log_p)
