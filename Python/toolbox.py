@@ -60,19 +60,19 @@ def policy_mh(theta_start, policy_cov, log_p, nits):
 
 def optimal_policy_cov(
         x,
-        theta0=0,
-        theta1=0,
-        theta2=0,
-        theta3=1,
+        theta0=0.0,
+        theta1=0.0,
+        theta2=0.0,
+        theta3=1.0,
         theta4=2.5,
-        theta5=0,
+        theta5=0.0,
         theta6=2.5,
-        theta7=0,
-        theta8=1,
+        theta7=0.0,
+        theta8=1.0,
         theta9=2.5,
-        theta10=0,
+        theta10=0.0,
         theta11=2.5,
-        theta12=0):
+        theta12=0.0):
     phi = np.arccos(theta0 + theta1*x[0] + theta2*x[1])
     alpha = theta3**2 + theta4**2 * (x[0] - theta5)**2 + theta6**2 * (x[1] - theta7)**2
     beta = theta8**2 + theta9**2 * (x[0] - theta10)**2 + theta11**2 * (x[1] - theta12)**2
