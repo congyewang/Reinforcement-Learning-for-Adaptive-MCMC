@@ -148,10 +148,16 @@ def make_nonsingular(matrix, epsilon=1e-6):
     # Check for near-zero eigenvalues
     near_zero_indices = np.abs(eigenvalues) < epsilon
 
-    # Adjust near-zero eigenvalues by adding a small offset
-    eigenvalues[near_zero_indices] += epsilon
+    while isSingular(matrix):
+        # Adjust near-zero eigenvalues by adding a small offset
+        eigenvalues[near_zero_indices] += epsilon
+        # Reconstruct the new matrix
+        matrix = np.dot(np.dot(eigenvectors, np.diag(eigenvalues)), np.linalg.inv(eigenvectors))
 
-    # Reconstruct the new matrix
-    new_matrix = np.dot(np.dot(eigenvectors, np.diag(eigenvalues)), np.linalg.inv(eigenvectors))
+    return matrix
 
-    return new_matrix
+def isSingular(matrix):
+    if np.linalg.det(matrix) <= 0:
+        return True
+    else:
+        return False
