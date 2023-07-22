@@ -35,8 +35,11 @@ class MyEnv(gym.Env):
 
         # MCMC Environment
         state_curr, accepted_status = env_mh(theta_curr=self.state, cov_curr=cov_curr, policy_cov_func=policy_cov_func, log_p=self.log_p)
+
+        # Store
         self.store_state.append(state_curr)
         self.accetped_status.append(accepted_status)
+        self.store_action.append(cov_curr)
 
         # Calculate Reward
         reward = np.power(np.linalg.norm(self.state - state_curr, 2), 2)
