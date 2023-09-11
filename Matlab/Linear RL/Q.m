@@ -1,17 +1,9 @@
-function out = Q(x,a,sigma,rew_length,gamma)
+% computes the true Q function
+function out = Q(x,a)
 
-rng(0);
-
-N = 100; % Monte Carlo approximation
-out = 0;
-X(1) = x;
-for n = 1:N
-    X(2) = MH(x,@(x) a); 
-    X(2:rew_length) = MCMC(X(2),sigma,rew_length-1);
-    out = out + (1/N) * cum_r(X,gamma);
-end
+out = trunc_moment(-abs(x),abs(x),x,x,a) ...
+      + ( my_normpdf(x,0,sqrt(1+a^2)) / my_normpdf(x,0,1)) ...
+        * ( trunc_moment(-inf,-abs(x),x,x/(1+a^2),a/sqrt(1+a^2)) ... 
+            + trunc_moment(abs(x),inf,x,x/(1+a^2),a/sqrt(1+a^2)) );
 
 end
-
-
-   
