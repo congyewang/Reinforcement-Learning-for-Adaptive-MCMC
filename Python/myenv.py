@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import gymnasium as gym
 from gymnasium import spaces
 
-from toolbox import env_mh, INF, SEED
+from base_rl_mcmc.toolbox import env_mh, INF, SEED
 
 
 class MyEnv(gym.Env):
@@ -68,7 +68,7 @@ class MyEnv(gym.Env):
     def reset(self, seed=None, options=None):
         # super().reset(seed=seed)
         self.ts = 0
-        self.state = np.zeros(self.dim)  # initialize s_{t}
+        self.state = 100.0 * np.ones(self.dim)  # initialize s_{t}
         self.store_state.append(self.state)
         self.accetped_status.append(True)
         self.store_action.append(np.eye(self.dim))

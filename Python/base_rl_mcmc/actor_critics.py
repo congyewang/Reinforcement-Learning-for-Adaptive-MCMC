@@ -11,10 +11,7 @@ class QFunction(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def forward(self, state_t, action, state_t_plus_1):
-        pass
-
-    def backward(self, state_t, action):
+    def grad(self, state_t, action):
         pass
 
 class PolicyFunction(metaclass=ABCMeta):
@@ -27,8 +24,5 @@ class PolicyFunction(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def forward(self, state_t, action, state_t_plus_1):
-        pass
-
-    def backward(self, state_t, action):
+    def grad(self, state_t, action):
         pass
