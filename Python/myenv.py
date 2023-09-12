@@ -7,7 +7,7 @@ from toolbox import env_mh, INF, SEED
 
 
 class MyEnv(gym.Env):
-    def __init__(self, log_p, dim=1, max_steps=100):
+    def __init__(self, log_p, dim=1, max_steps=10_000):
         super(MyEnv, self).__init__()
 
         # Target Distribution
@@ -53,7 +53,8 @@ class MyEnv(gym.Env):
         terminated = self.ts >= self.max_steps
         truncated = terminated
         if terminated:
-            self.reset()
+            # self.reset()
+            pass
 
         # Information
         info = {
