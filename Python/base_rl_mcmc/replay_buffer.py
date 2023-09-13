@@ -10,7 +10,7 @@ class ReplayBuffer:
             'action': np.zeros((capacity, action_dim), dtype=np.float32),
             'reward': np.zeros(capacity, dtype=np.float32),
             'next_state': np.zeros((capacity, state_dim), dtype=np.float32),
-            'done': np.zeros(capacity, dtype=np.float32),
+            'done': np.zeros(capacity, dtype=np.bool_),
         }
         self.position = 0
         self.size = 0
