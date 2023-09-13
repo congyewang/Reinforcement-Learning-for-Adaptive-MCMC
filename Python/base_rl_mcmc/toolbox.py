@@ -1,5 +1,7 @@
 import numpy as np
-from scipy.stats import multivariate_normal
+from scipy.stats import multivariate_normal, norm
+from scipy.special import roots_hermite
+from functools import partial
 
 INF = 3.4028235e+38 # Corresponds to the value of FLT_MAX in C++
 SEED = 1234
@@ -26,7 +28,9 @@ def env_mh(theta_curr, cov_curr, policy_cov_func, log_p):
     else:
         accepted_status = False
 
-    return theta_curr, accepted_status
+    alpha = np.min(1,np.exp(log_alpha))
+
+    return theta_curr, accepted_status, alpha
 
 def policy_mh(theta_start, policy_cov, log_p, nits):
     d = theta_start.size
@@ -161,3 +165,80 @@ def isSingular(matrix):
         return True
     else:
         return False
+
+def gauss_hermite_integral(func, n):
+    xi, w = roots_hermite(n)
+    integral = np.sum(w * func(xi))
+
+    return integral
+
+def exact_cumulative_reward(theta, q_func):
+    npt = 20 # number of cubature nodes
+
+    return (2 * np.pi)**(-0.5) * gauss_hermite_integral(partial(q_func, theta), npt) # cubature
+
+def trunc_moment(L, U, x, m, s):
+    l = (L - m) / s
+    u = (U - m) / s
+    Nl = norm.pdf(l, 0, 1)
+    Nu = norm.pdf(u, 0, 1)
+    Cl = norm.cdf(l, 0, 1)
+    Cu = norm.cdf(u, 0, 1)
+
+    if not (L == float('-inf') or U == float('inf')):
+        out = (m - x)**2 * (Cu - Cl) + 2 * (m - x) * s * (Nl - Nu) \
+              + s**2 * (Cu - Cl - (u * Nu - l * Nl))
+    elif U == float('inf'):
+        out = (m - x)**2 * (1 - Cl) + 2 * (m - x) * s * Nl \
+              + s**2 * (1 - Cl + l * Nl)
+    elif L == float('-inf'):
+        out = (m - x)**2 * Cu - 2 * (m - x) * s * Nu \
+              + s**2 * (Cu - u * Nu)
+
+    return out
+
+def Q(x, a):
+    term1 = trunc_moment(-abs(x), abs(x), x, x, a)
+    term2 = (norm.pdf(x, 0, np.sqrt(1 + a**2)) / norm.pdf(x, 0, 1)) \
+            * (trunc_moment(-np.inf, -abs(x), x, x / (1 + a**2), a / np.sqrt(1 + a**2)) \
+            + trunc_moment(abs(x), np.inf, x, x / (1 + a**2), a / np.sqrt(1 + a**2)))
+
+    return term1 + term2
+
+def omega(theta_curr, theta_prop, policy_cov_func, add_noise_policy_cov_func, log_p):
+    """
+    Importance weights for epsilon-greedy
+    """
+    cov_curr = policy_cov_func(theta_curr)
+    cov_prop = policy_cov_func(theta_prop)
+    noise_cov_curr = add_noise_policy_cov_func(theta_curr)
+    noise_cov_prop = add_noise_policy_cov_func(theta_prop)
+
+    # Log probability under policy_cov_func
+    log_p_prop = log_p(theta_prop)
+    log_p_curr = log_p(theta_curr)
+    log_q_prop = multivariate_normal.logpdf(theta_prop, theta_curr, cov_curr)
+    log_q_curr = multivariate_normal.logpdf(theta_curr, theta_prop, cov_prop)
+
+    log_alpha = log_p_prop\
+                - log_p_curr\
+                + log_q_curr\
+                - log_q_prop
+
+    alpha = min(1, np.exp(log_alpha))
+    prob_s = multivariate_normal.logpdf(theta_curr, theta_prop, cov_prop) * alpha
+
+    # Log probability under noise_policy_cov_func
+    noise_log_p_prop = log_p(theta_prop)
+    noise_log_p_curr = log_p(theta_curr)
+    noise_log_q_prop = multivariate_normal.logpdf(theta_prop, theta_curr, noise_cov_curr)
+    noise_log_q_curr = multivariate_normal.logpdf(theta_curr, theta_prop, noise_cov_prop)
+    noise_log_alpha = noise_log_p_prop\
+                - noise_log_p_curr\
+                + noise_log_q_curr\
+                - noise_log_q_prop
+    alpha = min(1, np.exp(noise_log_alpha))
+    prob_s_pert = multivariate_normal.logpdf(theta_curr, theta_prop, noise_cov_prop) * alpha
+
+    # Importance weight
+    return prob_s / prob_s_pert
