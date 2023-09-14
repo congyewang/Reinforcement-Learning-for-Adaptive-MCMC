@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import gymnasium as gym
 from gymnasium import spaces
 
+from rlax import add_gaussian_noise
+
 from base_rl_mcmc.toolbox import env_mh, INF, SEED
 
 
@@ -30,16 +32,16 @@ class MyEnv(gym.Env):
         self.store_action = [np.eye(dim)]
         self.store_reward = [0.0]
 
-    def step(self, action, policy_cov_func):
-        cov_curr = action
+    def step(self, action, policy_func, noise_policy_func):
+        sigma_curr = action
 
         # MCMC Environment
-        state_curr, accepted_status = env_mh(theta_curr=self.state, cov_curr=cov_curr, policy_cov_func=policy_cov_func, log_p=self.log_p)
+        state_curr, accepted_status, alpha, om = env_mh(theta_curr=self.state, sigma_curr=sigma_curr, policy_func=policy_func, noise_policy_func=noise_policy_func, log_p=self.log_p)
 
         # Store
         self.store_state.append(state_curr)
         self.accetped_status.append(accepted_status)
-        self.store_action.append(cov_curr)
+        self.store_action.append(sigma_curr)
 
         # Calculate Reward
         reward = np.power(np.linalg.norm(self.state - state_curr, 2), 2)
@@ -60,7 +62,9 @@ class MyEnv(gym.Env):
         info = {
             "state": state_curr,
             "accepted_status": accepted_status,
-            "reward": reward
+            "reward": reward,
+            "alpha": alpha,
+            "omega": om
         }
 
         return state_curr, reward, terminated, truncated, info
@@ -68,7 +72,7 @@ class MyEnv(gym.Env):
     def reset(self, seed=None, options=None):
         # super().reset(seed=seed)
         self.ts = 0
-        self.state = 100.0 * np.ones(self.dim)  # initialize s_{t}
+        self.state = 10.0 * np.ones(self.dim)  # initialize s_{t}
         self.store_state.append(self.state)
         self.accetped_status.append(True)
         self.store_action.append(np.eye(self.dim))
@@ -78,7 +82,9 @@ class MyEnv(gym.Env):
         info = {
             "state": self.state,
             "accepted_status": True,
-            "reward": 0.0
+            "reward": 0.0,
+            "alpha": 1.0,
+            "omega": 1.0
         }
         return self.state, info
 

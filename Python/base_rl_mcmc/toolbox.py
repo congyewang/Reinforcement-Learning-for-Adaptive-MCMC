@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import multivariate_normal, norm
+from scipy.stats import norm
 from scipy.special import roots_hermite
 from functools import partial
 
@@ -8,14 +8,14 @@ SEED = 1234
 generator = np.random.Generator(np.random.PCG64(SEED))
 
 
-def env_mh(theta_curr, cov_curr, policy_cov_func, log_p):
-    theta_prop = generator.multivariate_normal(theta_curr, cov_curr)
-    cov_prop = policy_cov_func(theta_prop)
+def env_mh(theta_curr, sigma_curr, policy_func, noise_policy_func, log_p):
+    theta_prop = generator.normal(theta_curr, sigma_curr)
+    sigma_prop = policy_func(theta_prop)
 
     log_p_prop = log_p(theta_prop)
     log_p_curr = log_p(theta_curr)
-    log_q_prop = multivariate_normal.logpdf(theta_prop, theta_curr, cov_curr)
-    log_q_curr = multivariate_normal.logpdf(theta_curr, theta_prop, cov_prop)
+    log_q_prop = norm.logpdf((theta_prop - theta_curr) / sigma_curr)
+    log_q_curr = norm.logpdf((theta_curr - theta_prop) / sigma_prop)
 
     log_alpha = log_p_prop\
                 - log_p_curr\
@@ -28,9 +28,11 @@ def env_mh(theta_curr, cov_curr, policy_cov_func, log_p):
     else:
         accepted_status = False
 
-    alpha = np.min(1,np.exp(log_alpha))
+    alpha = (min(np.array([1.0]), np.exp(log_alpha))).flatten()
 
-    return theta_curr, accepted_status, alpha
+    om = (omega(theta_curr, theta_prop, policy_func, noise_policy_func, log_p)).flatten()
+
+    return theta_curr, accepted_status, alpha, om
 
 def policy_mh(theta_start, policy_cov, log_p, nits):
     d = theta_start.size
@@ -205,20 +207,20 @@ def Q(x, a):
 
     return term1 + term2
 
-def omega(theta_curr, theta_prop, policy_cov_func, add_noise_policy_cov_func, log_p):
+def omega(theta_curr, theta_prop, policy_func, add_noise_policy_func, log_p):
     """
     Importance weights for epsilon-greedy
     """
-    cov_curr = policy_cov_func(theta_curr)
-    cov_prop = policy_cov_func(theta_prop)
-    noise_cov_curr = add_noise_policy_cov_func(theta_curr)
-    noise_cov_prop = add_noise_policy_cov_func(theta_prop)
+    sigma_curr = policy_func(theta_curr)
+    sigma_prop = policy_func(theta_prop)
+    noise_sigma_curr = add_noise_policy_func(theta_curr)
+    noise_sigma_prop = add_noise_policy_func(theta_prop)
 
     # Log probability under policy_cov_func
     log_p_prop = log_p(theta_prop)
     log_p_curr = log_p(theta_curr)
-    log_q_prop = multivariate_normal.logpdf(theta_prop, theta_curr, cov_curr)
-    log_q_curr = multivariate_normal.logpdf(theta_curr, theta_prop, cov_prop)
+    log_q_prop = norm.logpdf((theta_prop - theta_curr) / sigma_curr)
+    log_q_curr = norm.logpdf((theta_curr - theta_prop) / sigma_prop)
 
     log_alpha = log_p_prop\
                 - log_p_curr\
@@ -226,19 +228,19 @@ def omega(theta_curr, theta_prop, policy_cov_func, add_noise_policy_cov_func, lo
                 - log_q_prop
 
     alpha = min(1, np.exp(log_alpha))
-    prob_s = multivariate_normal.logpdf(theta_curr, theta_prop, cov_prop) * alpha
+    prob_s = norm.logpdf((theta_curr - theta_prop) / sigma_prop) * alpha
 
     # Log probability under noise_policy_cov_func
     noise_log_p_prop = log_p(theta_prop)
     noise_log_p_curr = log_p(theta_curr)
-    noise_log_q_prop = multivariate_normal.logpdf(theta_prop, theta_curr, noise_cov_curr)
-    noise_log_q_curr = multivariate_normal.logpdf(theta_curr, theta_prop, noise_cov_prop)
+    noise_log_q_prop = norm.logpdf((theta_prop - theta_curr) / noise_sigma_curr)
+    noise_log_q_curr = norm.logpdf((theta_curr - theta_prop) / noise_sigma_prop)
     noise_log_alpha = noise_log_p_prop\
                 - noise_log_p_curr\
                 + noise_log_q_curr\
                 - noise_log_q_prop
     alpha = min(1, np.exp(noise_log_alpha))
-    prob_s_pert = multivariate_normal.logpdf(theta_curr, theta_prop, noise_cov_prop) * alpha
+    prob_s_pert = norm.logpdf(theta_curr, theta_prop, noise_sigma_prop) * alpha
 
     # Importance weight
     return prob_s / prob_s_pert
