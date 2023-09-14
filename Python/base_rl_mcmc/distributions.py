@@ -4,7 +4,11 @@ import jax.numpy as jnp
 
 class Distribution:
     @staticmethod
-    def gaussian(x, mu=0.0, sigma2=1.0):
+    def gaussian1D(x, mu=0.0, sigma=1.0):
+        return -jnp.log(sigma*jnp.sqrt(2*jnp.pi)) - (x - mu)**2 / (2 * sigma**2)
+
+    @staticmethod
+    def gaussian2D(x, mu=0.0, sigma2=1.0):
         return -((x - mu)@(x - mu)) / (2 * sigma2)
 
     @staticmethod

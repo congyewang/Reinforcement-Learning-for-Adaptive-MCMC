@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm, multivariate_normal
 from scipy.special import roots_hermite
 from functools import partial
 
@@ -8,19 +8,19 @@ SEED = 1234
 generator = np.random.Generator(np.random.PCG64(SEED))
 
 
-def env_mh(theta_curr, sigma_curr, policy_func, noise_policy_func, log_p):
-    theta_prop = generator.normal(theta_curr, sigma_curr)
+def env_mh(theta_curr, sigma_curr, policy_func, log_p):
+    theta_prop = generator.normal(theta_curr, sigma_curr).flatten()
     sigma_prop = policy_func(theta_prop)
 
     log_p_prop = log_p(theta_prop)
     log_p_curr = log_p(theta_curr)
-    log_q_prop = norm.logpdf((theta_prop - theta_curr) / sigma_curr)
-    log_q_curr = norm.logpdf((theta_curr - theta_prop) / sigma_prop)
+    log_q_prop = norm.logpdf(theta_prop, loc=theta_curr, scale=sigma_curr)
+    log_q_curr = norm.logpdf(theta_curr, loc=theta_prop, scale=sigma_prop)
 
-    log_alpha = log_p_prop\
-                - log_p_curr\
-                + log_q_curr\
-                - log_q_prop
+    log_alpha = log_p_prop \
+            - log_p_curr \
+            + log_q_curr \
+            - log_q_prop
 
     if np.log(generator.uniform()) < log_alpha:
         theta_curr = theta_prop
@@ -28,11 +28,7 @@ def env_mh(theta_curr, sigma_curr, policy_func, noise_policy_func, log_p):
     else:
         accepted_status = False
 
-    alpha = (min(np.array([1.0]), np.exp(log_alpha))).flatten()
-
-    om = (omega(theta_curr, theta_prop, policy_func, noise_policy_func, log_p)).flatten()
-
-    return theta_curr, accepted_status, alpha, om
+    return theta_curr, accepted_status, theta_prop
 
 def policy_mh(theta_start, policy_cov, log_p, nits):
     d = theta_start.size

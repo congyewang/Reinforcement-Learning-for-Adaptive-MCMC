@@ -1,11 +1,13 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import gymnasium as gym
 from gymnasium import spaces
 
-from rlax import add_gaussian_noise
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
 
-from base_rl_mcmc.toolbox import env_mh, INF, SEED
+INF = 3.4028235e+38 # Corresponds to the value of FLT_MAX in C++
+SEED = 1234
+generator = np.random.Generator(np.random.PCG64(SEED))
 
 
 class MyEnv(gym.Env):
@@ -32,11 +34,35 @@ class MyEnv(gym.Env):
         self.store_action = [np.eye(dim)]
         self.store_reward = [0.0]
 
-    def step(self, action, policy_func, noise_policy_func):
+    def env_mh(self, theta_curr, policy_func, log_p):
+        sigma_curr = policy_func(theta_curr)
+
+        theta_prop = generator.normal(theta_curr, sigma_curr).flatten()
+        sigma_prop = policy_func(theta_prop)
+
+        log_p_prop = log_p(theta_prop)
+        log_p_curr = log_p(theta_curr)
+        log_q_prop = norm.logpdf(theta_prop, loc=theta_curr, scale=sigma_curr)
+        log_q_curr = norm.logpdf(theta_curr, loc=theta_prop, scale=sigma_prop)
+
+        log_alpha = log_p_prop \
+                - log_p_curr \
+                + log_q_curr \
+                - log_q_prop
+
+        if np.log(generator.uniform()) < log_alpha:
+            theta_curr = theta_prop
+            accepted_status = True
+        else:
+            accepted_status = False
+
+        return theta_curr, accepted_status, theta_prop
+
+    def step(self, action, policy_func):
         sigma_curr = action
 
         # MCMC Environment
-        state_curr, accepted_status, alpha, om = env_mh(theta_curr=self.state, sigma_curr=sigma_curr, policy_func=policy_func, noise_policy_func=noise_policy_func, log_p=self.log_p)
+        state_curr, accepted_status, theta_prop = self.env_mh(theta_curr=self.state, policy_func=policy_func, log_p=self.log_p)
 
         # Store
         self.store_state.append(state_curr)
@@ -48,7 +74,7 @@ class MyEnv(gym.Env):
         self.store_reward.append(reward)
 
         # Update Iteration Time
-        self.store = state_curr
+        self.state = state_curr
         self.ts += 1
 
         # Check for Completion
@@ -63,8 +89,7 @@ class MyEnv(gym.Env):
             "state": state_curr,
             "accepted_status": accepted_status,
             "reward": reward,
-            "alpha": alpha,
-            "omega": om
+            "theta_prop": theta_prop
         }
 
         return state_curr, reward, terminated, truncated, info
@@ -82,9 +107,7 @@ class MyEnv(gym.Env):
         info = {
             "state": self.state,
             "accepted_status": True,
-            "reward": 0.0,
-            "alpha": 1.0,
-            "omega": 1.0
+            "reward": 0.0
         }
         return self.state, info
 
