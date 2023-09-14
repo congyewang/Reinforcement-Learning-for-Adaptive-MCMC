@@ -219,28 +219,35 @@ def omega(theta_curr, theta_prop, policy_func, add_noise_policy_func, log_p):
     # Log probability under policy_cov_func
     log_p_prop = log_p(theta_prop)
     log_p_curr = log_p(theta_curr)
-    log_q_prop = norm.logpdf((theta_prop - theta_curr) / sigma_curr)
-    log_q_curr = norm.logpdf((theta_curr - theta_prop) / sigma_prop)
+    log_q_prop = norm.logpdf(theta_prop, loc=theta_curr, scale=sigma_curr)
+    log_q_curr = norm.logpdf(theta_curr, loc=theta_prop, scale=sigma_prop)
 
     log_alpha = log_p_prop\
                 - log_p_curr\
                 + log_q_curr\
                 - log_q_prop
 
-    alpha = min(1, np.exp(log_alpha))
-    prob_s = norm.logpdf((theta_curr - theta_prop) / sigma_prop) * alpha
+    log_alpha = min(0.0, log_alpha)
+    # print(alpha)
+    prob_s = norm.logpdf(theta_curr, theta_prop, sigma_prop) + log_alpha
 
     # Log probability under noise_policy_cov_func
     noise_log_p_prop = log_p(theta_prop)
     noise_log_p_curr = log_p(theta_curr)
-    noise_log_q_prop = norm.logpdf((theta_prop - theta_curr) / noise_sigma_curr)
-    noise_log_q_curr = norm.logpdf((theta_curr - theta_prop) / noise_sigma_prop)
+    noise_log_q_prop = norm.logpdf(theta_prop, loc=theta_curr, scale=noise_sigma_curr)
+    noise_log_q_curr = norm.logpdf(theta_curr, loc=theta_prop, scale=noise_sigma_prop)
     noise_log_alpha = noise_log_p_prop\
                 - noise_log_p_curr\
                 + noise_log_q_curr\
                 - noise_log_q_prop
-    alpha = min(1, np.exp(noise_log_alpha))
-    prob_s_pert = norm.logpdf(theta_curr, theta_prop, noise_sigma_prop) * alpha
+    noise_log_alpha = min(0.0, noise_log_alpha)
+    prob_s_pert = norm.logpdf(theta_curr, theta_prop, noise_sigma_prop) + noise_log_alpha
 
     # Importance weight
-    return prob_s / prob_s_pert
+
+    print("prob_s", prob_s)
+    print("prob_s_pert", prob_s_pert)
+
+    print(np.exp(prob_s - prob_s_pert))
+
+    return np.exp(prob_s - prob_s_pert)
