@@ -13,6 +13,7 @@ learning_rate = 0.001
 learning_starts = 5
 noise_clip = 0.5
 policy_frequency = 50
+policy_noise = 0.2
 save_model = false
 seed = 1234
 tau = 0.005
