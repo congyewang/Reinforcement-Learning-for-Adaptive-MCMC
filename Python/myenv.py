@@ -37,6 +37,8 @@ class MyEnv(gym.Env):
         self.store_accetped_status = []
         self.store_action = []
         self.store_reward = []
+        self.store_esjd = []
+        self.store_esjd_error = []
 
     def env_mh(self, theta_curr, policy_func, log_p):
         sigma_curr = policy_func(theta_curr)
@@ -115,6 +117,10 @@ class MyEnv(gym.Env):
             "accepted_status": True,
             "reward": 0.0
         }
+
+        # Initialize ESJD Parameters
+        self.quartile()
+
         return self.state, info
 
     def render(self, mode="human"):
@@ -143,7 +149,7 @@ class MyEnv(gym.Env):
         return min(0, log_alpha)
 
     def log_squared_jump_distance(self, x_t, x_t_plus_1):
-        return np.log(np.power(np.linalg.norm(x_t - x_t_plus_1, 2), 2))
+        return np.log(np.power(np.linalg.norm(np.array([x_t]) - np.array([x_t_plus_1]), 2), 2))
 
     def expected_squared_jump_distance_single_iteration(self, x_t, x_t_plus_1, policy_func):
         return np.exp(self.log_p(x_t) \
@@ -151,24 +157,23 @@ class MyEnv(gym.Env):
             + self.log_q_proposal(x_t_plus_1, x_t, policy_func) \
             + self.log_squared_jump_distance(x_t, x_t_plus_1))
 
-    def numerical_integration(
-            self,
-            policy_func,
-            x_t_lower_bound=-np.inf,
-            x_t_upper_bound=np.inf,
-            x_t_plus_1_lower_bound=-np.inf,
-            x_t_plus_1_upper_bound=np.inf
-            ):
+    def quartile(self, loc=0, scale=1, alpha=0.005):
+        self.lower_limit, self.upper_limit = norm.ppf([0.5 * alpha, 1 - 0.5 * alpha], loc=loc, scale=scale)
+
+    def expected_squared_jump_distance(self, policy_func):
         """
         Numerical integration to calculate expected squared jump distance
         """
-        partial_expected_squared_jump_distance_single_iteration = partial(
+        result, error = dblquad(
             self.expected_squared_jump_distance_single_iteration,
-            policy_func=policy_func)
-        result, _ = dblquad(
-            partial_expected_squared_jump_distance_single_iteration,
-            x_t_lower_bound, x_t_upper_bound,  # x_t limits
-            x_t_plus_1_lower_bound, x_t_plus_1_upper_bound,  # x_t_plus_1 limits
-            lambda x_t_plus_1: x_t_lower_bound, lambda x_t_plus_1: x_t_upper_bound)  # x limits
+            self.lower_limit,
+            self.upper_limit,
+            lambda x: self.lower_limit,
+            lambda x: self.upper_limit,
+            args=[policy_func]
+            )
 
-        return result
+        self.store_esjd.append(result)
+        self.store_esjd_error.append(error)
+
+        # return result, error
