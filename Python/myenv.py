@@ -122,9 +122,9 @@ class MyEnv(gym.Env):
         plt.show()
 
     def log_q_proposal(self, x_t_plus_1, x_t, policy_func):
-        sigma_curr = policy_func(x_t)
+        sigma_t = policy_func(x_t)
 
-        return norm.logpdf(x_t_plus_1, loc=x_t, scale=sigma_curr)
+        return norm.logpdf(x_t_plus_1, loc=x_t, scale=sigma_t)
 
     def log_acceptance_ratio(self, x_t, x_t_plus_1, policy_func):
         sigma_t = policy_func(x_t)
