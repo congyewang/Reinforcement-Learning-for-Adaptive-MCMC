@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 from scipy.integrate import dblquad
 
+from functools import partial
+
 INF = 3.4028235e+38 # Corresponds to the value of FLT_MAX in C++
 SEED = 1234
 generator = np.random.Generator(np.random.PCG64(SEED))
@@ -151,6 +153,7 @@ class MyEnv(gym.Env):
 
     def numerical_integration(
             self,
+            policy_func,
             x_t_lower_bound=-np.inf,
             x_t_upper_bound=np.inf,
             x_t_plus_1_lower_bound=-np.inf,
@@ -159,8 +162,11 @@ class MyEnv(gym.Env):
         """
         Numerical integration to calculate expected squared jump distance
         """
-        result, _ = dblquad(
+        partial_expected_squared_jump_distance_single_iteration = partial(
             self.expected_squared_jump_distance_single_iteration,
+            policy_func=policy_func)
+        result, _ = dblquad(
+            partial_expected_squared_jump_distance_single_iteration,
             x_t_lower_bound, x_t_upper_bound,  # x_t limits
             x_t_plus_1_lower_bound, x_t_plus_1_upper_bound,  # x_t_plus_1 limits
             lambda x_t_plus_1: x_t_lower_bound, lambda x_t_plus_1: x_t_upper_bound)  # x limits
