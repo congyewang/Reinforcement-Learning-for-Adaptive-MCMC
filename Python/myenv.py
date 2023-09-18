@@ -143,7 +143,7 @@ class MyEnv(gym.Env):
         return np.log(np.power(np.linalg.norm(theta_curr - theta_prop, 2), 2))
 
     def expected_squared_jump_distance_single_iteration(self, theta_curr, theta_prop, policy_func):
-        return self.log_p(theta_curr) \
-            + self.acceptance_ratio(theta_curr, theta_prop, policy_func) \
+        return np.exp(self.log_p(theta_curr) \
+            + self.log_acceptance_ratio(theta_curr, theta_prop, policy_func) \
             + self.log_q_proposal(theta_prop, theta_curr) \
-            + self.log_squared_jump_distance(theta_curr, theta_prop)
+            + self.log_squared_jump_distance(theta_curr, theta_prop))
