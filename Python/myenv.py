@@ -4,6 +4,7 @@ from gymnasium import spaces
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+from scipy.integrate import dblquad
 
 INF = 3.4028235e+38 # Corresponds to the value of FLT_MAX in C++
 SEED = 1234
@@ -118,32 +119,50 @@ class MyEnv(gym.Env):
         plt.plot(self.store_state)
         plt.show()
 
-    def log_q_proposal(self, theta_prop, theta_curr, policy_func):
-        sigma_curr = policy_func(theta_curr)
+    def log_q_proposal(self, x_t_plus_1, x_t, policy_func):
+        sigma_curr = policy_func(x_t)
 
-        return norm.logpdf(theta_prop, loc=theta_curr, scale=sigma_curr)
+        return norm.logpdf(x_t_plus_1, loc=x_t, scale=sigma_curr)
 
-    def log_acceptance_ratio(self, theta_curr, theta_prop, policy_func):
-        sigma_curr = policy_func(theta_curr)
-        sigma_prop = policy_func(theta_prop)
+    def log_acceptance_ratio(self, x_t, x_t_plus_1, policy_func):
+        sigma_t = policy_func(x_t)
+        sigma_t_plus_1 = policy_func(x_t_plus_1)
 
-        log_p_prop = self.log_p(theta_prop)
-        log_p_curr = self.log_p(theta_curr)
-        log_q_prop = norm.logpdf(theta_prop, loc=theta_curr, scale=sigma_curr)
-        log_q_curr = norm.logpdf(theta_curr, loc=theta_prop, scale=sigma_prop)
+        log_p_t_plus_1 = self.log_p(x_t_plus_1)
+        log_p_t = self.log_p(x_t)
+        log_q_t_plus_1 = norm.logpdf(x_t_plus_1, loc=x_t, scale=sigma_t)
+        log_q_t = norm.logpdf(x_t, loc=x_t_plus_1, scale=sigma_t_plus_1)
 
-        log_alpha = log_p_prop \
-                - log_p_curr \
-                + log_q_curr \
-                - log_q_prop
+        log_alpha = log_p_t_plus_1 \
+                - log_p_t \
+                + log_q_t \
+                - log_q_t_plus_1
 
         return min(0, log_alpha)
 
-    def log_squared_jump_distance(self, theta_curr, theta_prop):
-        return np.log(np.power(np.linalg.norm(theta_curr - theta_prop, 2), 2))
+    def log_squared_jump_distance(self, x_t, x_t_plus_1):
+        return np.log(np.power(np.linalg.norm(x_t - x_t_plus_1, 2), 2))
 
-    def expected_squared_jump_distance_single_iteration(self, theta_curr, theta_prop, policy_func):
-        return np.exp(self.log_p(theta_curr) \
-            + self.log_acceptance_ratio(theta_curr, theta_prop, policy_func) \
-            + self.log_q_proposal(theta_prop, theta_curr) \
-            + self.log_squared_jump_distance(theta_curr, theta_prop))
+    def expected_squared_jump_distance_single_iteration(self, x_t, x_t_plus_1, policy_func):
+        return np.exp(self.log_p(x_t) \
+            + self.log_acceptance_ratio(x_t, x_t_plus_1, policy_func) \
+            + self.log_q_proposal(x_t_plus_1, x_t) \
+            + self.log_squared_jump_distance(x_t, x_t_plus_1))
+
+    def numerical_integration(
+            self,
+            x_t_lower_bound=-np.inf,
+            x_t_upper_bound=np.inf,
+            x_t_plus_1_lower_bound=-np.inf,
+            x_t_plus_1_upper_bound=np.inf
+            ):
+        """
+        Numerical integration to calculate expected squared jump distance
+        """
+        result, _ = dblquad(
+            self.expected_squared_jump_distance_single_iteration,
+            x_t_lower_bound, x_t_upper_bound,  # x_t limits
+            x_t_plus_1_lower_bound, x_t_plus_1_upper_bound,  # x_t_plus_1 limits
+            lambda x_t_plus_1: x_t_lower_bound, lambda x_t_plus_1: x_t_upper_bound)  # x limits
+
+        return result
