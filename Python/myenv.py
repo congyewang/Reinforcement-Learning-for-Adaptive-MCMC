@@ -148,7 +148,7 @@ class MyEnv(gym.Env):
     def expected_squared_jump_distance_single_iteration(self, x_t, x_t_plus_1, policy_func):
         return np.exp(self.log_p(x_t) \
             + self.log_acceptance_ratio(x_t, x_t_plus_1, policy_func) \
-            + self.log_q_proposal(x_t_plus_1, x_t) \
+            + self.log_q_proposal(x_t_plus_1, x_t, policy_func) \
             + self.log_squared_jump_distance(x_t, x_t_plus_1))
 
     def numerical_integration(
