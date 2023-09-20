@@ -168,3 +168,6 @@ cython_debug/
 
 # Records
 runs/
+
+# PosteriorDB
+Python/posteriordb/
