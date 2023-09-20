@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 from scipy.integrate import dblquad
 
-from functools import partial
-
 INF = 3.4028235e+38 # Corresponds to the value of FLT_MAX in C++
 SEED = 1234
 generator = np.random.Generator(np.random.PCG64(SEED))
