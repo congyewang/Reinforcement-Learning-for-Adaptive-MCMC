@@ -247,3 +247,15 @@ def omega(theta_curr, theta_prop, policy_func, add_noise_policy_func, log_p):
     print(np.exp(prob_s - prob_s_pert))
 
     return np.exp(prob_s - prob_s_pert)
+
+def flat(nested_list):
+    """
+    Expand nested list
+    """
+    res = []
+    for i in nested_list:
+        if isinstance(i, list):
+            res.extend(flat(i))
+        else:
+            res.append(i)
+    return res
