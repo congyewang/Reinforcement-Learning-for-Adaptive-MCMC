@@ -27,7 +27,7 @@ class MyEnv2D(gym.Env):
         self.observation_space = spaces.Box(low=-INF, high=INF, shape=(dim,))
 
         # Action specification
-        self.action_space = spaces.Box(low=0.0, high=INF, shape=(dim,))
+        self.action_space = spaces.Box(low=0.0, high=INF, shape=(1,))
 
         # Store
         self.store_state = []
@@ -105,7 +105,7 @@ class MyEnv2D(gym.Env):
         self.state = 10.0 * np.ones(self.dim)  # initialize s_{t}
         self.store_state.append(self.state)
         self.store_accetped_status.append(True)
-        self.store_action.append(np.eye(self.dim))
+        self.store_action.append(np.array([1.0]))
         self.store_reward.append(0.0)
         self.store_log_accetance_rate.append(np.array([0.0]))
 
