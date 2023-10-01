@@ -117,9 +117,6 @@ class MyEnv(gym.Env):
             "reward": np.array([0.0])
         }
 
-        # Initialize ESJD Parameters
-        self.quartile()
-
         return self.state, info
 
     def render(self, mode="human"):
