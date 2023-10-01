@@ -1,6 +1,6 @@
 adam_beta1 = 0.9
 adam_beta2 = 0.999
-batch_size = 36
+batch_size = 48
 buffer_size = 20000
 capture_video = false
 env_id = "MyEnv-v0"
