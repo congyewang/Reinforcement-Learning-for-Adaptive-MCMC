@@ -259,3 +259,10 @@ def flat(nested_list):
         else:
             res.append(i)
     return res
+
+def first_nan_position(arr):
+    nan_positions = np.isnan(arr)
+    if np.any(nan_positions):
+        return np.argmax(nan_positions)
+    else:
+        return None
