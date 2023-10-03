@@ -33,11 +33,12 @@ class MyEnv(gym.Env):
         self.store_log_accetance_rate = []
         self.store_accetped_status = []
         self.store_action = []
+        self.store_action_pair = []
         self.store_reward = []
 
     def step(self, action):
         theta_curr = self.state[0].reshape(self.dim,)
-        theta_prop = self.state[1].reshape(self.dim,)
+        theta_prop = theta_curr + action[0] * self.state[1].reshape(self.dim,)
 
         sigma_curr = action[0].reshape(self.dim,)
         sigma_prop = action[1].reshape(self.dim,)
@@ -61,6 +62,8 @@ class MyEnv(gym.Env):
         # Generate Epislon_{t+1}
         eps_next = generator.normal(loc=0, scale=1, size=(1,))
 
+        self.store_action_pair.append([sigma_curr, sigma_prop])
+
         ## Accept or Reject
         if np.log(generator.uniform()) < log_alpha:
             accepted_status = True
@@ -78,7 +81,8 @@ class MyEnv(gym.Env):
             theta_next = theta_curr
 
         # Calculate Rao Blackwell Reward
-        reward = np.power(np.linalg.norm(theta_curr.reshape(self.dim, -1) - theta_prop.reshape(self.dim, -1), 2), 2) * np.exp(log_alpha)
+        norm_2 = np.linalg.norm(theta_curr.reshape(self.dim, -1) - theta_prop.reshape(self.dim, -1), 2)
+        reward = np.power(norm_2, 2) * np.exp(log_alpha)
         self.store_reward.append(reward)
 
         # Update State and Iteration Time
