@@ -100,7 +100,7 @@ class MyEnv2D(gym.Env):
     def reset(self, seed=None, options=None):
         # super().reset(seed=seed)
         self.ts = 0
-        self.state = 10.0 * np.ones(self.dim)  # initialize s_{t}
+        self.state = np.ones(self.dim)  # initialize s_{t}
         self.store_state.append(self.state)
         self.store_accetped_status.append(True)
         self.store_action.append(np.array([1.0]))

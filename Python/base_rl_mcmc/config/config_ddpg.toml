@@ -1,7 +1,7 @@
 adam_beta1 = 0.9
 adam_beta2 = 0.999
 batch_size = 36
-buffer_size = 20000
+buffer_size = 200000
 capture_video = false
 env_id = "MyEnv-v0"
 epsilon = 1e-8
@@ -17,7 +17,7 @@ policy_noise = 0.2
 save_model = false
 seed = 1234
 tau = 0.005
-total_timesteps = 20000
+total_timesteps = 200000
 track = false
 upload_model = false
 wandb_entity = "null"
