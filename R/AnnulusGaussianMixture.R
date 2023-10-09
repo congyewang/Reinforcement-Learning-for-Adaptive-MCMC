@@ -19,7 +19,7 @@ initial_values <- list(
   list(mu = c(20, 20))
 )
 
-fit <- stan(file = './models/Annulus_Gaussian_Mixture.stan',
+fit <- stan(file = './models/AnnulusGaussianMixture.stan',
             data = data,
             chains = 2,
             iter = 100000,
