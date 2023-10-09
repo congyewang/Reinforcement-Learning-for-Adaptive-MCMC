@@ -171,3 +171,6 @@ runs/
 
 # PosteriorDB
 Python/posteriordb/
+
+# Stan
+*.rds
