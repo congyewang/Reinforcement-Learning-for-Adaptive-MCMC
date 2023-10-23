@@ -266,3 +266,18 @@ def first_nan_position(arr):
         return np.argmax(nan_positions)
     else:
         return None
+
+def reshape_vector(v):
+    v = v.flatten()
+    n = len(v) - 1
+    d = int((np.sqrt(8*n + 1) - 1) / 2)
+    
+    tri_matrix = np.zeros((d, d))
+    index = 0
+    for i in range(d):
+        for j in range(i + 1):
+            tri_matrix[i, j] = v[index]
+            index += 1
+    last_element = v[-1]
+
+    return tri_matrix, last_element
