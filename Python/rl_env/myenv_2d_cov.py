@@ -47,6 +47,10 @@ class MyEnv2DCov(gym.Env):
 
         return tri_matrix, last_element
 
+    def log_mvn(self, x, mean, cov):
+        """Multivariate normal distribution."""
+        return (-0.5 * len(mean) * np.log(2 * np.pi) - 0.5 * np.log(np.linalg.det(cov)) - 0.5 * (x - mean) @ np.linalg.inv(cov) @ (x - mean).T).squeeze()
+
     def env_mh(self, theta_curr, policy_func, log_p):
         L_curr, mag_curr = self.reshape_vector(policy_func(theta_curr))
         cov_curr = L_curr @ L_curr.T + mag_curr * np.eye(self.dim)
@@ -57,8 +61,10 @@ class MyEnv2DCov(gym.Env):
 
         log_p_prop = log_p(theta_prop)
         log_p_curr = log_p(theta_curr)
-        log_q_prop = multivariate_normal.logpdf(theta_prop, mean=theta_curr.flatten(), cov=cov_curr)
-        log_q_curr = multivariate_normal.logpdf(theta_curr, mean=theta_prop.flatten(), cov=cov_prop)
+        # log_q_prop = multivariate_normal.logpdf(theta_prop, mean=theta_curr.flatten(), cov=cov_curr, allow_singular=True)
+        # log_q_curr = multivariate_normal.logpdf(theta_curr, mean=theta_prop.flatten(), cov=cov_prop, allow_singular=True)
+        log_q_prop = self.log_mvn(theta_prop, theta_curr.flatten(), cov_curr)
+        log_q_curr = self.log_mvn(theta_curr, theta_prop.flatten(), cov_prop)
 
         log_alpha = log_p_prop \
                 - log_p_curr \
@@ -113,7 +119,7 @@ class MyEnv2DCov(gym.Env):
     def reset(self, seed=None, options=None):
         # super().reset(seed=seed)
         self.ts = 0
-        self.state = np.ones(self.dim).reshape(1, -1)  # initialize s_{t}
+        self.state = np.zeros(self.dim).reshape(1, -1)  # initialize s_{t}
         self.store_state.append(self.state)
         self.store_accetped_status.append(True)
         self.store_action.append(
