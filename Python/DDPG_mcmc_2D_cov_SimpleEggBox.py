@@ -23,7 +23,6 @@ import pandas as pd
 import bridgestan as bs
 from posteriordb import PosteriorDatabase
 
-
 config = toml.load("./base_rl_mcmc/config/config_ddpg.toml")
 args = SimpleNamespace(**config)
 
@@ -43,9 +42,15 @@ class QNetwork(nn.Module):
     @nn.compact
     def __call__(self, x: jnp.ndarray, a: jnp.ndarray):
         x = jnp.concatenate([x, a], -1)
-        x = nn.Dense(48)(x)
+        x = nn.Dense(256)(x)
         x = nn.softplus(x)
-        x = nn.Dense(48)(x)
+        x = nn.Dense(512)(x)
+        x = nn.softplus(x)
+        x = nn.Dense(1024)(x)
+        x = nn.softplus(x)
+        x = nn.Dense(512)(x)
+        x = nn.softplus(x)
+        x = nn.Dense(256)(x)
         x = nn.softplus(x)
         x = nn.Dense(1)(x)
         x = nn.softplus(x)
@@ -63,11 +68,17 @@ class Actor(nn.Module):
         return jnp.concatenate([x_sigma, mag_sigma], -1)
 
     def phi(self, input, name):
-        x = nn.Dense(48, name=f"{name}_dense1")(input)
+        x = nn.Dense(256, name=f"{name}_dense1")(input)
         x = nn.softplus(x)
-        x = nn.Dense(48, name=f"{name}_dense4")(x)
+        x = nn.Dense(512, name=f"{name}_dense2")(x)
         x = nn.softplus(x)
-        x = nn.Dense(int((1 + self.action_dim) * self.action_dim / 2 + 1), name=f"{name}_dense5")(x)
+        x = nn.Dense(1024, name=f"{name}_dense3")(x)
+        x = nn.softplus(x)
+        x = nn.Dense(512, name=f"{name}_dense4")(x)
+        x = nn.softplus(x)
+        x = nn.Dense(256, name=f"{name}_dense5")(x)
+        x = nn.softplus(x)
+        x = nn.Dense(int((1 + self.action_dim) * self.action_dim / 2 + 1), name=f"{name}_dense6")(x)
         x = nn.softplus(x)
         return x
 
@@ -231,4 +242,4 @@ for global_step in trange(args.total_timesteps):
 state_list = np.array([i for i in env.store_state]).reshape(-1, dim)
 action_list = np.array([i.squeeze() for i in env.store_action])
 
-np.savetxt('SimpleEggBox_DDPG_small.csv', state_list, delimiter=',')
+np.savetxt('SimpleEggBox_DDPG_large_ultra.csv', state_list, delimiter=',')

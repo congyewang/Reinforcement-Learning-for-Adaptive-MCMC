@@ -271,7 +271,7 @@ def reshape_vector(v):
     v = v.flatten()
     n = len(v) - 1
     d = int((np.sqrt(8*n + 1) - 1) / 2)
-    
+
     tri_matrix = np.zeros((d, d))
     index = 0
     for i in range(d):
