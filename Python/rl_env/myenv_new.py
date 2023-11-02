@@ -6,14 +6,6 @@ import numpy as np
 from scipy.stats import multivariate_normal
 
 import jax
-import flax
-import flax.linen as nn
-import optax
-from flax.training.train_state import TrainState
-
-import toml
-from typing import Sequence
-from types import SimpleNamespace
 
 INF = 3.4028235e+38 # Corresponds to the value of FLT_MAX in C++
 SEED = 1234
@@ -112,11 +104,11 @@ class MyEnvNew(gym.Env):
     def step(self, action):
         # Extract x
         x = self.state[0:self.dim]
-        # Extract x_star and transition kernel
-        x_star, log_q_kernel = action[0:self.dim], action[self.dim]
+        # Extract x_star and density ratio
+        x_star, log_q_ratio = action[0:self.dim], action[self.dim]
 
         # Accept/Reject Process
-        log_alpha = self.log_p(x_star) - self.log_p(x) + log_q_kernel
+        log_alpha = self.log_p(x_star) - self.log_p(x) + log_q_ratio
 
         if np.log(generator.uniform()) < log_alpha:
             accepted_status = True
