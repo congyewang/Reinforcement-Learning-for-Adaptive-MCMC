@@ -1,5 +1,5 @@
 import numpy as np
-from abc import ABCMeta, abstractclassmethod
+from abc import ABCMeta, abstractmethod
 import torch
 from torch import nn
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
@@ -8,6 +8,9 @@ from stable_baselines3.common.policies import ActorCriticPolicy
 
 class RLMCMCPolicyInterface(metaclass=ABCMeta):
     def __init__(self, dim: int) -> None:
+        if type(dim) != int:
+            raise TypeError("dim can only accept int")
+
         self.dim = dim
 
     def __call__(self, state: torch.Tensor) -> torch.Tensor:
@@ -25,7 +28,7 @@ class RLMCMCPolicyInterface(metaclass=ABCMeta):
         action = torch.hstack([proposed_sample_vector, log_proposal_ratio_scalar])
         return action
 
-    @abstractclassmethod
+    @abstractmethod
     def parameterised_low_rank_vector(self, sample: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Must be implemented by subclass")
 
@@ -42,11 +45,11 @@ class RLMCMCPolicyInterface(metaclass=ABCMeta):
 
         return covariance_matrix
 
-    @abstractclassmethod
+    @abstractmethod
     def generate_proposed_sample(self, current_sample: torch.Tensor, mcmc_noise: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Must be implemented by subclass")
 
-    @abstractclassmethod
+    @abstractmethod
     def log_proposal_pdf(self, x: torch.Tensor, mean: torch.Tensor, cov: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Must be implemented by subclass")
 
@@ -65,14 +68,14 @@ class RLMHPolicy(RLMCMCPolicyInterface):
     def __init__(self, dim=2):
         super().__init__(dim)
 
-    def parameterised_low_rank_vector(self, sample):
+    def parameterised_low_rank_vector(self, sample: torch.Tensor) -> torch.Tensor:
         return torch.Tensor([1., 0., 0., 1.])
 
-    def generate_proposed_sample(self, current_sample, mcmc_noise):
+    def generate_proposed_sample(self, current_sample: torch.Tensor, mcmc_noise: torch.Tensor) -> torch.Tensor:
         current_covariance_matrix = self.parameterised_covariance_matrix(current_sample) 
         return current_sample + mcmc_noise @ torch.sqrt(current_covariance_matrix)
 
-    def log_proposal_pdf(self, x, mean, cov):
+    def log_proposal_pdf(self, x: torch.Tensor, mean: torch.Tensor, cov: torch.Tensor) -> torch.Tensor:
         multivariate_normal = torch.distributions.MultivariateNormal(mean, cov)
         return multivariate_normal.log_prob(x)
 
