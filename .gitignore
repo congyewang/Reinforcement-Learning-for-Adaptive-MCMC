@@ -174,3 +174,6 @@ Python/posteriordb/
 
 # Stan
 *.rds
+
+# VSCode
+.vscode/
