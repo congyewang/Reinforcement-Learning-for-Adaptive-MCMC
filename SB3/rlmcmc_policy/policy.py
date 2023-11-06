@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractmethod
-from ast import Tuple
 from typing import (
     Any,
     Dict,
@@ -8,25 +7,34 @@ from typing import (
     Optional,
     Type,
     Union,
-    Callable
+    Tuple
     )
 import torch
 from torch import nn
 import torch.nn as nn
+import numpy as np
 from gymnasium import spaces
-from stable_baselines3 import DDPG
-from stable_baselines3.td3.policies import TD3Policy
-from  stable_baselines3.td3.policies import Actor
-from stable_baselines3.common.policies import BasePolicy, ContinuousCritic, ActorCriticPolicy
+from stable_baselines3.common.policies import BasePolicy, ContinuousCritic
+from stable_baselines3.td3.policies import Actor
 from stable_baselines3.common.preprocessing import get_action_dim
 from stable_baselines3.common.torch_layers import (
-    FlattenExtractor,
     BaseFeaturesExtractor,
+    FlattenExtractor,
     NatureCNN,
-    get_actor_critic_arch
-    )
+    get_actor_critic_arch,
+)
+from stable_baselines3.common.vec_env import VecEnv
 from stable_baselines3.common.type_aliases import Schedule
 from collections import OrderedDict
+from stable_baselines3.td3 import TD3
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.buffers import ReplayBuffer
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.noise import ActionNoise, VectorizedActionNoise
+from stable_baselines3.common.policies import BasePolicy
+from stable_baselines3.common.type_aliases import RolloutReturn, Schedule, TrainFreq, TrainFrequencyUnit
+from stable_baselines3.common.utils import should_collect_more_steps
+from stable_baselines3.common.vec_env import VecEnv
 
 
 class RLMCMCPolicyInterface(metaclass=ABCMeta): 
@@ -109,8 +117,10 @@ class RLMCMCPolicyInterface(metaclass=ABCMeta):
 
 class RLMHPolicy(RLMCMCPolicyInterface):
     def generate_proposed_sample(self, current_sample: torch.Tensor, mcmc_noise: torch.Tensor) -> torch.Tensor:
-        current_covariance_matrix = self.parameterised_covariance_matrix(current_sample) 
-        return current_sample + mcmc_noise @ torch.sqrt(current_covariance_matrix)
+        current_covariance_matrix = self.parameterised_covariance_matrix(current_sample)
+        proposed_sample = current_sample + mcmc_noise @ torch.sqrt(current_covariance_matrix)
+        print("proposed_sample_RLMHPolicy:", proposed_sample)
+        return proposed_sample
 
     def log_proposal_pdf(self, x: torch.Tensor, mean: torch.Tensor, cov: torch.Tensor) -> torch.Tensor:
         multivariate_normal = torch.distributions.MultivariateNormal(mean, cov)
@@ -124,7 +134,7 @@ class RLMHPolicyActor(Actor, RLMHPolicy):
         net_arch: List[int],
         features_extractor: nn.Module,
         features_dim: int,
-        activation_fn: Type[nn.Module] = nn.ReLU,
+        activation_fn: Type[nn.Module] = nn.Softplus,
         *args,
         **kwargs
     ):
@@ -219,10 +229,285 @@ class RLMHPolicyActor(Actor, RLMHPolicy):
         features = self.extract_features(obs, self.features_extractor)
         return self.policy_mapping(features)
 
+class TD3Policy(BasePolicy):
+    """Policy class (with both actor and critic) for TD3.
+
+    Args:
+        observation_space (spaces.Space): Observation space.
+        action_space (spaces.Box): Action space.
+        lr_schedule (Schedule): Learning rate schedule (could be constant).
+        net_arch (Optional[Union[List[int], Dict[str, List[int]]]]): The specification of the policy and value networks.
+        activation_fn (nn.Module): Activation function.
+        features_extractor_class (Type[BaseFeaturesExtractor]): Features extractor to use.
+        features_extractor_kwargs (Type[BaseFeaturesExtractor]): Keyword arguments. to pass to the features extractor.
+        normalize_images (bool): Whether to normalize images or not, dividing by 255.0 (True by default)
+        optimizer_class (Type[torch.optim.Optimizer]): The optimizer to use, ``torch.optim.Adam`` by default
+        optimizer_kwargs (Optional[Dict[str, Any]]): Additional keyword arguments, excluding the learning rate, to pass to the optimizer
+        n_critics (int): Number of critic networks to create.
+        share_features_extractor (bool): Whether to share or not the features extractor between the actor and the critic (this saves computation time)
+    """
+
+    actor: Actor
+    actor_target: Actor
+    critic: ContinuousCritic
+    critic_target: ContinuousCritic
+
+    def __init__(
+        self,
+        observation_space: spaces.Space,
+        action_space: spaces.Box,
+        lr_schedule: Schedule,
+        net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
+        activation_fn: Type[nn.Module] = nn.Softplus,
+        features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
+        features_extractor_kwargs: Optional[Dict[str, Any]] = None,
+        normalize_images: bool = True,
+        optimizer_class: Type[torch.optim.Optimizer] = torch.optim.Adam,
+        optimizer_kwargs: Optional[Dict[str, Any]] = None,
+        n_critics: int = 2,
+        share_features_extractor: bool = False,
+    ):
+        super().__init__(
+            observation_space,
+            action_space,
+            features_extractor_class,
+            features_extractor_kwargs,
+            optimizer_class=optimizer_class,
+            optimizer_kwargs=optimizer_kwargs,
+            squash_output=False,
+            normalize_images=normalize_images,
+        )
+
+        if net_arch is None:
+            if features_extractor_class == NatureCNN:
+                net_arch = [256, 256]
+            else:
+                net_arch = [48, 48]
+
+        actor_arch, critic_arch = get_actor_critic_arch(net_arch)
+
+        self.net_arch = net_arch
+        self.activation_fn = activation_fn
+        self.net_args = {
+            "observation_space": self.observation_space,
+            "action_space": self.action_space,
+            "net_arch": actor_arch,
+            "activation_fn": self.activation_fn,
+            "normalize_images": normalize_images,
+        }
+        self.actor_kwargs = self.net_args.copy()
+        self.critic_kwargs = self.net_args.copy()
+        self.critic_kwargs.update(
+            {
+                "n_critics": n_critics,
+                "net_arch": critic_arch,
+                "share_features_extractor": share_features_extractor,
+            }
+        )
+
+        self.share_features_extractor = share_features_extractor
+
+        self._build(lr_schedule)
+
+    def _build(self, lr_schedule: Schedule) -> None:
+        self.actor = self.make_actor(features_extractor=None)
+        self.actor_target = self.make_actor(features_extractor=None)
+        self.actor_target.load_state_dict(self.actor.state_dict())
+
+        self.actor.optimizer = self.optimizer_class(
+            self.actor.parameters(),
+            lr=lr_schedule(1),  # type: ignore[call-arg]
+            **self.optimizer_kwargs,
+        )
+
+        if self.share_features_extractor:
+            self.critic = self.make_critic(features_extractor=self.actor.features_extractor)
+            self.critic_target = self.make_critic(features_extractor=self.actor_target.features_extractor)
+        else:
+            self.critic = self.make_critic(features_extractor=None)
+            self.critic_target = self.make_critic(features_extractor=None)
+
+        self.critic_target.load_state_dict(self.critic.state_dict())
+        self.critic.optimizer = self.optimizer_class(
+            self.critic.parameters(),
+            lr=lr_schedule(1),  # type: ignore[call-arg]
+            **self.optimizer_kwargs,
+        )
+
+        self.actor_target.set_training_mode(False)
+        self.critic_target.set_training_mode(False)
+
+    def _get_constructor_parameters(self) -> Dict[str, Any]:
+        data = super()._get_constructor_parameters()
+
+        data.update(
+            dict(
+                net_arch=self.net_arch,
+                activation_fn=self.net_args["activation_fn"],
+                n_critics=self.critic_kwargs["n_critics"],
+                lr_schedule=self._dummy_schedule,
+                optimizer_class=self.optimizer_class,
+                optimizer_kwargs=self.optimizer_kwargs,
+                features_extractor_class=self.features_extractor_class,
+                features_extractor_kwargs=self.features_extractor_kwargs,
+                share_features_extractor=self.share_features_extractor,
+            )
+        )
+        return data
+
+    def make_actor(self, features_extractor: Optional[BaseFeaturesExtractor] = None) -> Actor:
+        actor_kwargs = self._update_features_extractor(self.actor_kwargs, features_extractor)
+        return Actor(**actor_kwargs).to(self.device)
+
+    def make_critic(self, features_extractor: Optional[BaseFeaturesExtractor] = None) -> ContinuousCritic:
+        critic_kwargs = self._update_features_extractor(self.critic_kwargs, features_extractor)
+        return ContinuousCritic(**critic_kwargs).to(self.device)
+
+    def forward(self, observation: torch.Tensor, deterministic: bool = False) -> torch.Tensor:
+        return self._predict(observation, deterministic=deterministic)
+
+    def _predict(self, observation: torch.Tensor, deterministic: bool = False) -> torch.Tensor:
+        return self.actor(observation)
+
+    def set_training_mode(self, mode: bool) -> None:
+        self.actor.set_training_mode(mode)
+        self.critic.set_training_mode(mode)
+        self.training = mode
+ 
 class RLMHTD3Policy(TD3Policy):
+    def __init__(
+            self,
+            observation_space: spaces.Space,
+            action_space: spaces.Box,
+            lr_schedule: Schedule,
+            net_arch: List[int] | Dict[str, List[int]] | None = None,
+            activation_fn: type[nn.Module] = nn.Softplus,
+            features_extractor_class: type[BaseFeaturesExtractor] = FlattenExtractor,
+            features_extractor_kwargs: Dict[str, Any] | None = None,
+            normalize_images: bool = True,
+            optimizer_class: type[torch.optim.Optimizer] = torch.optim.Adam,
+            optimizer_kwargs: Dict[str, Any] | None = None,
+            n_critics: int = 2,
+            share_features_extractor: bool = False
+            ):
+        super().__init__(
+            observation_space,
+            action_space,
+            lr_schedule,
+            net_arch,
+            activation_fn,
+            features_extractor_class,
+            features_extractor_kwargs,
+            normalize_images,
+            optimizer_class,
+            optimizer_kwargs,
+            n_critics,
+            share_features_extractor
+            )
+        if net_arch is None:
+            net_arch = [48, 48]
+
+        self.net_arch = net_arch
+
     def make_actor(self, features_extractor: Optional[BaseFeaturesExtractor] = None) -> Actor:
         actor_kwargs = self._update_features_extractor(self.actor_kwargs, features_extractor)
         return RLMHPolicyActor(**actor_kwargs).to(self.device)
+
+class RLMHTD3(TD3):
+    def collect_rollouts(
+        self,
+        env: VecEnv,
+        callback: BaseCallback,
+        train_freq: TrainFreq,
+        replay_buffer: ReplayBuffer,
+        action_noise: Optional[ActionNoise] = None,
+        learning_starts: int = 0,
+        log_interval: Optional[int] = None,
+    ) -> RolloutReturn:
+        # Switch to eval mode (this affects batch norm / dropout)
+        self.policy.set_training_mode(False)
+
+        num_collected_steps, num_collected_episodes = 0, 0
+
+        assert isinstance(env, VecEnv), "You must pass a VecEnv"
+        assert train_freq.frequency > 0, "Should at least collect one step or episode."
+
+        if env.num_envs > 1:
+            assert train_freq.unit == TrainFrequencyUnit.STEP, "You must use only one env when doing episodic training."
+
+        # Vectorize action noise if needed
+        if action_noise is not None and env.num_envs > 1 and not isinstance(action_noise, VectorizedActionNoise):
+            action_noise = VectorizedActionNoise(action_noise, env.num_envs)
+
+        if self.use_sde:
+            self.actor.reset_noise(env.num_envs)
+
+        callback.on_rollout_start()
+        continue_training = True
+        while should_collect_more_steps(train_freq, num_collected_steps, num_collected_episodes):
+            if self.use_sde and self.sde_sample_freq > 0 and num_collected_steps % self.sde_sample_freq == 0:
+                # Sample a new noise matrix
+                self.actor.reset_noise(env.num_envs)
+
+            # Select action randomly or according to policy
+            actions, buffer_actions = self._sample_action(learning_starts, action_noise, env.num_envs)
+
+            # Rescale and perform action
+            new_obs, rewards, dones, infos = env.step(actions)
+
+            self.num_timesteps += env.num_envs
+            num_collected_steps += 1
+
+            # Give access to local variables
+            callback.update_locals(locals())
+            # Only stop training if return value is False, not when it is None.
+            if callback.on_step() is False:
+                return RolloutReturn(num_collected_steps * env.num_envs, num_collected_episodes, continue_training=False)
+
+            # Retrieve reward and episode length if using Monitor wrapper
+            self._update_info_buffer(infos, dones)
+
+            # Store data in replay buffer (normalized action and unnormalized observation)
+            self._store_transition(replay_buffer, buffer_actions, new_obs, rewards, dones, infos)
+
+            self._update_current_progress_remaining(self.num_timesteps, self._total_timesteps)
+
+            # For DQN, check if the target network should be updated
+            # and update the exploration schedule
+            # For SAC/TD3, the update is dones as the same time as the gradient update
+            # see https://github.com/hill-a/stable-baselines/issues/900
+            self._on_step()
+
+            for idx, done in enumerate(dones):
+                if done:
+                    # Update stats
+                    num_collected_episodes += 1
+                    self._episode_num += 1
+
+                    if action_noise is not None:
+                        kwargs = dict(indices=[idx]) if env.num_envs > 1 else {}
+                        action_noise.reset(**kwargs)
+
+                    # Log training infos
+                    if log_interval is not None and self._episode_num % log_interval == 0:
+                        self._dump_logs()
+        callback.on_rollout_end()
+
+        return RolloutReturn(num_collected_steps * env.num_envs, num_collected_episodes, continue_training)
+
+    def _sample_action(
+        self,
+        learning_starts: int,
+        action_noise: Optional[ActionNoise] = None,
+        n_envs: int = 1,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+
+        unscaled_action, _ = self.predict(self._last_obs, deterministic=False)
+
+        buffer_action = unscaled_action
+        action = buffer_action
+
+        return action, buffer_action
 
 def linear_schedule(initial_value: float = 0.001) -> Schedule:
     """Linear learning rate schedule.
@@ -244,3 +529,38 @@ def linear_schedule(initial_value: float = 0.001) -> Schedule:
         return progress_remaining * initial_value
 
     return func
+
+
+if __name__ == "__main__":
+    import random
+    import numpy as np
+
+
+    # dim = random.randint(1, 100)
+    dim = 2
+    print("dim:", dim)
+
+    observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(1, int(2 * dim)))
+    action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(1, dim + 1))
+    features_extractor = FlattenExtractor(observation_space)
+
+    mcmc_noise = torch.distributions.MultivariateNormal(torch.zeros(dim), torch.eye(dim)).sample()
+    state = torch.hstack([torch.repeat_interleave(torch.tensor([0.]), dim).unsqueeze(0), mcmc_noise.unsqueeze(0)])
+
+    RLMHPolicyActorpolicy = RLMHPolicyActor(
+        observation_space=observation_space,
+        action_space=action_space,
+        net_arch=[48, 48],
+        features_extractor=features_extractor,
+        features_dim=int(2 * dim),
+        activation_fn = nn.Softplus
+        )
+    print("RLMHPolicyActorpolicy action:", RLMHPolicyActorpolicy(state))
+
+    TD3policy = RLMHTD3Policy(
+        observation_space=observation_space,
+        action_space=action_space,
+        lr_schedule=linear_schedule(0.001),
+        net_arch=[48, 48]
+    )
+    print("TD3policy action:", TD3policy(state))
