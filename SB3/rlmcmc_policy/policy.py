@@ -21,7 +21,6 @@ from stable_baselines3.common.torch_layers import (
     NatureCNN,
     get_actor_critic_arch,
 )
-from stable_baselines3.common.type_aliases import Schedule
 from stable_baselines3.common.type_aliases import (
     GymEnv,
     MaybeCallback,
@@ -44,7 +43,7 @@ logging.basicConfig(level=logging.ERROR)
 class RLMCMCPolicyInterface(metaclass=ABCMeta):
     def __init__(self, sample_dim: int) -> None:
         super().__init__()
-        assert type(sample_dim) == int and sample_dim > 0, ValueError(
+        assert isinstance(sample_dim, int) and sample_dim > 0, ValueError(
             "The sample dimension must be a positive integer."
         )
         self._sample_dim = sample_dim
