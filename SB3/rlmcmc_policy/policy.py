@@ -36,6 +36,10 @@ from stable_baselines3.common.type_aliases import RolloutReturn, Schedule, Train
 from stable_baselines3.common.utils import should_collect_more_steps
 from stable_baselines3.common.vec_env import VecEnv
 
+import logging
+
+logging.basicConfig(level=logging.ERROR)
+
 
 class RLMCMCPolicyInterface(metaclass=ABCMeta): 
     def __init__(self, sample_dim: int) -> None:
@@ -63,7 +67,7 @@ class RLMCMCPolicyInterface(metaclass=ABCMeta):
         log_proposal_ratio_scalar = self.log_proposal_ratio(current_sample, mcmc_noise)
 
         # Construct action
-        action = torch.hstack([proposed_sample_vector, log_proposal_ratio_scalar.unsqueeze(0)])
+        action = torch.hstack([proposed_sample_vector, log_proposal_ratio_scalar.unsqueeze(1)])
         return action
 
     @property
@@ -88,8 +92,8 @@ class RLMCMCPolicyInterface(metaclass=ABCMeta):
         magnification = low_rank_vector_and_magnification[:, -1]
 
         #Construct the covariance matrix
-        covariance_matrix = low_rank_vector @ low_rank_vector.T + magnification * torch.eye(self._sample_dim)
-        print("covariance_matrix:", covariance_matrix)
+        covariance_matrix = torch.einsum('ij,ik->ijk', low_rank_vector, low_rank_vector) + torch.einsum('i,jk->ijk', magnification, torch.eye(self._sample_dim))
+        logging.debug(f"covariance_matrix: {covariance_matrix}")
         return covariance_matrix
 
     @abstractmethod
@@ -118,8 +122,9 @@ class RLMCMCPolicyInterface(metaclass=ABCMeta):
 class RLMHPolicy(RLMCMCPolicyInterface):
     def generate_proposed_sample(self, current_sample: torch.Tensor, mcmc_noise: torch.Tensor) -> torch.Tensor:
         current_covariance_matrix = self.parameterised_covariance_matrix(current_sample)
-        proposed_sample = current_sample + mcmc_noise @ torch.sqrt(current_covariance_matrix)
-        print("proposed_sample_RLMHPolicy:", proposed_sample)
+        proposed_sample = current_sample + torch.einsum('ij, ijk -> ik', mcmc_noise, torch.sqrt(current_covariance_matrix))
+
+        logging.debug(f"proposed_sample_RLMHPolicy: {proposed_sample}")
         return proposed_sample
 
     def log_proposal_pdf(self, x: torch.Tensor, mean: torch.Tensor, cov: torch.Tensor) -> torch.Tensor:
@@ -373,7 +378,7 @@ class TD3Policy(BasePolicy):
         self.actor.set_training_mode(mode)
         self.critic.set_training_mode(mode)
         self.training = mode
- 
+
 class RLMHTD3Policy(TD3Policy):
     def __init__(
             self,
@@ -538,7 +543,7 @@ if __name__ == "__main__":
 
     # dim = random.randint(1, 100)
     dim = 2
-    print("dim:", dim)
+    # print("dim:", dim)
 
     observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(1, int(2 * dim)))
     action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(1, dim + 1))
@@ -546,6 +551,9 @@ if __name__ == "__main__":
 
     mcmc_noise = torch.distributions.MultivariateNormal(torch.zeros(dim), torch.eye(dim)).sample()
     state = torch.hstack([torch.repeat_interleave(torch.tensor([0.]), dim).unsqueeze(0), mcmc_noise.unsqueeze(0)])
+
+    vec_state = torch.vstack([state, state, state, state, state])
+    # print("vec_state:", vec_state)
 
     RLMHPolicyActorpolicy = RLMHPolicyActor(
         observation_space=observation_space,
@@ -555,7 +563,7 @@ if __name__ == "__main__":
         features_dim=int(2 * dim),
         activation_fn = nn.Softplus
         )
-    print("RLMHPolicyActorpolicy action:", RLMHPolicyActorpolicy(state))
+    # print("RLMHPolicyActorpolicy action:", RLMHPolicyActorpolicy(state))
 
     TD3policy = RLMHTD3Policy(
         observation_space=observation_space,
@@ -563,4 +571,7 @@ if __name__ == "__main__":
         lr_schedule=linear_schedule(0.001),
         net_arch=[48, 48]
     )
-    print("TD3policy action:", TD3policy(state))
+    # print("TD3policy action:", TD3policy(state))
+
+    # print("TD3policy vec action:", TD3policy(vec_state))
+    print(TD3policy(vec_state))

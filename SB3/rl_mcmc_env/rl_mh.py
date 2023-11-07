@@ -9,7 +9,7 @@ import logging
 INF = 3.4028235e+38 # Corresponds to the value of FLT_MAX in C++
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.ERROR)
 
 
 class RLMHEnv(gym.Env):
@@ -45,6 +45,8 @@ class RLMHEnv(gym.Env):
         # Extract proposed sample and proposed density ratio
         proposed_sample, log_proposed_density_ratio = action[:, 0:self.sample_dim], action[:, self.sample_dim]
 
+        logging.info(f"Proposed Sample: {proposed_sample}")
+
         # Accept/Reject Process
         log_alpha = self.log_target_pdf(proposed_sample) - self.log_target_pdf(current_sample) + log_proposed_density_ratio
 
@@ -69,16 +71,15 @@ class RLMHEnv(gym.Env):
         reward = (np.power(np.linalg.norm(current_sample - proposed_sample, 2), 2) * np.exp(log_alpha)).flatten()[0]
         self.store_reward.append(reward)
 
+        # Check for Completion
+        terminated = self._steps > self.total_timesteps
+        truncated = terminated
+        if terminated:
+            pass
+
         # Update Iteration Time
         self.state = state
         self._steps += 1
-
-        # Check for Completion
-        terminated = self._steps >= self.total_timesteps
-        truncated = terminated
-        if terminated:
-            # self.reset()
-            pass
 
         # Information
         info = {
@@ -87,8 +88,13 @@ class RLMHEnv(gym.Env):
             "current_sample": current_sample,
             "proposed_sample": proposed_sample,
             "accepted_status": accepted_status,
-            "reward": reward
+            "reward": reward,
+            "terminated": terminated,
+            "truncated": truncated
         }
+
+        logging.info(f"Terminated: {terminated}")
+        logging.info(f"Truncated: {truncated}")
 
         return state, reward, terminated, truncated, info
 
@@ -122,3 +128,9 @@ class RLMHEnv(gym.Env):
         }
 
         return self.state, info
+
+    def render(self):
+        pass
+
+    def close(self):
+        pass
