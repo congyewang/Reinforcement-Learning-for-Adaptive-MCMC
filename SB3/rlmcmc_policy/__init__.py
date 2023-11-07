@@ -4,3 +4,5 @@ from .policy import (
     RLMHDDPG,
     linear_schedule
 )
+
+__all__ = ["RLMHTD3Policy", "RLMHTD3", "RLMHDDPG", "linear_schedule"]
