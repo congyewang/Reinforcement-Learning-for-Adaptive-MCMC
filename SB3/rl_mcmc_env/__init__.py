@@ -1,5 +1,5 @@
 from gymnasium.envs.registration import register
-
+from .rl_mh import RLMHEnv
 
 register(
     id='RLMHEnv-v0',

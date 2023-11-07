@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import gymnasium as gym
 
 from mcmctoolbox.functoolbox import flat
-from rlmcmc_policy.policy import RLMHTD3Policy, RLMHDDPG
+from rlmcmc_policy import RLMHTD3Policy, RLMHDDPG
 
 
 # Load DataBase Locally
