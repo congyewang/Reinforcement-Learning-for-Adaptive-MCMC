@@ -516,8 +516,6 @@ class RLMHDDPG(DDPG):
 
         return action, buffer_action
 
-        return action, buffer_action
-
 
 def linear_schedule(initial_value: float = 0.001) -> Schedule:
     """Linear learning rate schedule.
