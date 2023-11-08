@@ -1,7 +1,17 @@
 import logging
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
-from typing import Any, Dict, List, Literal, Optional, Tuple, Type, TypeVar, Union
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union
+    )
 
 import torch
 from torch import nn
@@ -10,9 +20,8 @@ import numpy as np
 
 from gymnasium import spaces
 
-from stable_baselines3.common.buffers import ReplayBuffer
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.noise import ActionNoise, VectorizedActionNoise
+from stable_baselines3 import TD3, DDPG
+from stable_baselines3.common.noise import ActionNoise
 from stable_baselines3.common.policies import BasePolicy, ContinuousCritic
 from stable_baselines3.common.preprocessing import get_action_dim
 from stable_baselines3.common.torch_layers import (
@@ -21,21 +30,10 @@ from stable_baselines3.common.torch_layers import (
     NatureCNN,
     get_actor_critic_arch,
 )
-from stable_baselines3.common.type_aliases import (
-    GymEnv,
-    MaybeCallback,
-    RolloutReturn,
-    Schedule,
-    TrainFreq,
-    TrainFrequencyUnit,
-)
-from stable_baselines3.common.utils import should_collect_more_steps
-from stable_baselines3.common.vec_env import VecEnv
+from stable_baselines3.common.type_aliases import Schedule
 from stable_baselines3.td3.policies import Actor
-from stable_baselines3 import TD3
 
 SelfDDPG = TypeVar("SelfDDPG", bound="DDPG")
-
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -468,123 +466,24 @@ class RLMHTD3Policy(TD3Policy):
 
 
 class RLMHTD3(TD3):
-    def collect_rollouts(
-        self,
-        env: VecEnv,
-        callback: BaseCallback,
-        train_freq: TrainFreq,
-        replay_buffer: ReplayBuffer,
-        action_noise: Optional[ActionNoise] = None,
-        learning_starts: int = 0,
-        log_interval: Optional[int] = None,
-    ) -> RolloutReturn:
-        # Switch to eval mode (this affects batch norm / dropout)
-        self.policy.set_training_mode(False)
-
-        num_collected_steps, num_collected_episodes = 0, 0
-
-        assert isinstance(env, VecEnv), "You must pass a VecEnv"
-        assert train_freq.frequency > 0, "Should at least collect one step or episode."
-
-        if env.num_envs > 1:
-            assert (
-                train_freq.unit == TrainFrequencyUnit.STEP
-            ), "You must use only one env when doing episodic training."
-
-        # Vectorize action noise if needed
-        if (
-            action_noise is not None
-            and env.num_envs > 1
-            and not isinstance(action_noise, VectorizedActionNoise)
-        ):
-            action_noise = VectorizedActionNoise(action_noise, env.num_envs)
-
-        if self.use_sde:
-            self.actor.reset_noise(env.num_envs)
-
-        callback.on_rollout_start()
-        continue_training = True
-        while should_collect_more_steps(
-            train_freq, num_collected_steps, num_collected_episodes
-        ):
-            if (
-                self.use_sde
-                and self.sde_sample_freq > 0
-                and num_collected_steps % self.sde_sample_freq == 0
-            ):
-                # Sample a new noise matrix
-                self.actor.reset_noise(env.num_envs)
-
-            # Select action randomly or according to policy
-            actions, buffer_actions = self._sample_action(
-                learning_starts, action_noise, env.num_envs
-            )
-
-            # Rescale and perform action
-            new_obs, rewards, dones, infos = env.step(actions)
-
-            self.num_timesteps += env.num_envs
-            num_collected_steps += 1
-
-            # Give access to local variables
-            callback.update_locals(locals())
-            # Only stop training if return value is False, not when it is None.
-            if callback.on_step() is False:
-                return RolloutReturn(
-                    num_collected_steps * env.num_envs,
-                    num_collected_episodes,
-                    continue_training=False,
-                )
-
-            # Retrieve reward and episode length if using Monitor wrapper
-            self._update_info_buffer(infos, dones)
-
-            # Store data in replay buffer (normalized action and unnormalized observation)
-            self._store_transition(
-                replay_buffer, buffer_actions, new_obs, rewards, dones, infos
-            )
-
-            self._update_current_progress_remaining(
-                self.num_timesteps, self._total_timesteps
-            )
-
-            # For DQN, check if the target network should be updated
-            # and update the exploration schedule
-            # For SAC/TD3, the update is dones as the same time as the gradient update
-            # see https://github.com/hill-a/stable-baselines/issues/900
-            self._on_step()
-
-            for idx, done in enumerate(dones):
-                if done:
-                    # Update stats
-                    num_collected_episodes += 1
-                    self._episode_num += 1
-
-                    if action_noise is not None:
-                        kwargs = dict(indices=[idx]) if env.num_envs > 1 else {}
-                        action_noise.reset(**kwargs)
-
-                    # Log training infos
-                    if (
-                        log_interval is not None
-                        and self._episode_num % log_interval == 0
-                    ):
-                        self._dump_logs()
-        callback.on_rollout_end()
-
-        return RolloutReturn(
-            num_collected_steps * env.num_envs,
-            num_collected_episodes,
-            continue_training,
-        )
-
     def _sample_action(
         self,
         learning_starts: int,
         action_noise: Optional[ActionNoise] = None,
         n_envs: int = 1,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        unscaled_action, _ = self.predict(self._last_obs, deterministic=False)
+        # Select action randomly or according to policy
+        if self.num_timesteps < learning_starts and not (
+            self.use_sde and self.use_sde_at_warmup
+        ):
+            unscaled_action = np.array(
+                [self.action_space.sample() for _ in range(n_envs)]
+            )
+        else:
+            unscaled_action, _ = self.predict(self._last_obs, deterministic=False)
+
+        if action_noise is not None:
+            unscaled_action = unscaled_action + action_noise()
 
         buffer_action = unscaled_action
         action = buffer_action
@@ -592,82 +491,32 @@ class RLMHTD3(TD3):
         return action, buffer_action
 
 
-class RLMHDDPG(RLMHTD3):
-    def __init__(
+class RLMHDDPG(DDPG):
+    def _sample_action(
         self,
-        policy: Union[str, Type[TD3Policy]],
-        env: Union[GymEnv, str],
-        learning_rate: Union[float, Schedule] = 1e-3,
-        buffer_size: int = 1_000_000,  # 1e6
-        learning_starts: int = 100,
-        batch_size: int = 100,
-        tau: float = 0.005,
-        gamma: float = 0.99,
-        train_freq: Union[int, Tuple[int, str]] = (1, "episode"),
-        gradient_steps: int = -1,
+        learning_starts: int,
         action_noise: Optional[ActionNoise] = None,
-        replay_buffer_class: Optional[Type[ReplayBuffer]] = None,
-        replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
-        optimize_memory_usage: bool = False,
-        tensorboard_log: Optional[str] = None,
-        policy_kwargs: Optional[Dict[str, Any]] = None,
-        verbose: int = 0,
-        seed: Optional[int] = None,
-        device: Union[torch.device, str] = "auto",
-        _init_setup_model: bool = True,
-    ):
-        super().__init__(
-            policy=policy,
-            env=env,
-            learning_rate=learning_rate,
-            buffer_size=buffer_size,
-            learning_starts=learning_starts,
-            batch_size=batch_size,
-            tau=tau,
-            gamma=gamma,
-            train_freq=train_freq,
-            gradient_steps=gradient_steps,
-            action_noise=action_noise,
-            replay_buffer_class=replay_buffer_class,
-            replay_buffer_kwargs=replay_buffer_kwargs,
-            policy_kwargs=policy_kwargs,
-            tensorboard_log=tensorboard_log,
-            verbose=verbose,
-            device=device,
-            seed=seed,
-            optimize_memory_usage=optimize_memory_usage,
-            # Remove all tricks from TD3 to obtain DDPG:
-            # we still need to specify target_policy_noise > 0 to avoid errors
-            policy_delay=1,
-            target_noise_clip=0.0,
-            target_policy_noise=0.1,
-            _init_setup_model=False,
-        )
+        n_envs: int = 1,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        # Select action randomly or according to policy
+        if self.num_timesteps < learning_starts and not (
+            self.use_sde and self.use_sde_at_warmup
+        ):
+            unscaled_action = np.array(
+                [self.action_space.sample() for _ in range(n_envs)]
+            )
+        else:
+            unscaled_action, _ = self.predict(self._last_obs, deterministic=False)
 
-        # Use only one critic
-        if "n_critics" not in self.policy_kwargs:
-            self.policy_kwargs["n_critics"] = 1
+        if action_noise is not None:
+            unscaled_action = unscaled_action + action_noise()
 
-        if _init_setup_model:
-            self._setup_model()
+        buffer_action = unscaled_action
+        action = buffer_action
 
-    def learn(
-        self: SelfDDPG,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 4,
-        tb_log_name: str = "DDPG",
-        reset_num_timesteps: bool = True,
-        progress_bar: bool = False,
-    ) -> SelfDDPG:
-        return super().learn(
-            total_timesteps=total_timesteps,
-            callback=callback,
-            log_interval=log_interval,
-            tb_log_name=tb_log_name,
-            reset_num_timesteps=reset_num_timesteps,
-            progress_bar=progress_bar,
-        )
+        return action, buffer_action
+
+        return action, buffer_action
 
 
 def linear_schedule(initial_value: float = 0.001) -> Schedule:
@@ -691,49 +540,3 @@ def linear_schedule(initial_value: float = 0.001) -> Schedule:
         return progress_remaining * initial_value
 
     return func
-
-
-if __name__ == "__main__":
-    import random
-    import numpy as np
-
-    # dim = random.randint(1, 100)
-    dim = 2
-    # print("dim:", dim)
-
-    observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(1, int(2 * dim)))
-    action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(1, dim + 1))
-    features_extractor = FlattenExtractor(observation_space)
-
-    mcmc_noise = torch.distributions.MultivariateNormal(
-        torch.zeros(dim), torch.eye(dim)
-    ).sample()
-    state = torch.hstack(
-        [
-            torch.repeat_interleave(torch.tensor([0.0]), dim).unsqueeze(0),
-            mcmc_noise.unsqueeze(0),
-        ]
-    )
-
-    vec_state = torch.vstack([state, state, state, state, state])
-    # print("vec_state:", vec_state)
-
-    RLMHPolicyActorpolicy = RLMHPolicyActor(
-        observation_space=observation_space,
-        action_space=action_space,
-        net_arch=[48, 48],
-        features_extractor=features_extractor,
-        features_dim=int(2 * dim),
-        activation_fn=nn.Softplus,
-    )
-    # print("RLMHPolicyActorpolicy action:", RLMHPolicyActorpolicy(state))
-
-    TD3policy = RLMHTD3Policy(
-        observation_space=observation_space,
-        action_space=action_space,
-        lr_schedule=linear_schedule(0.001),
-        net_arch=[48, 48],
-    )
-    # print("TD3policy action:", TD3policy(state))
-
-    print("TD3policy vec action:", TD3policy(vec_state))
