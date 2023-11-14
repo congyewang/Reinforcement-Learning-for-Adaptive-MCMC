@@ -12,7 +12,6 @@ from rlmcmc.env import RLMHEnv
 from rlmcmc.policy import RLMHTD3Policy
 from rlmcmc.agent import RLMHDDPG
 
-import os
 import json
 import pandas as pd
 import bridgestan as bs
@@ -22,7 +21,7 @@ from mcmctoolbox.functoolbox import flat
 
 
 # Load DataBase Locally
-pdb_path = os.path.join(os.getcwd(), "../Python/posteriordb/posterior_database")
+pdb_path = "/home/congye/Code/PythonProjects/LearningAdaptiveMCMC/Python/posteriordb/posterior_database"
 my_pdb = PosteriorDatabase(pdb_path)
 
 # Load Dataset
