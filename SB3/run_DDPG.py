@@ -8,8 +8,9 @@ from stable_baselines3.common.noise import (
     OrnsteinUhlenbeckActionNoise,
 )
 
-from rlmcmc_env import RLMHEnv
-from rlmcmc_policy.policy import RLMHTD3Policy, RLMHDDPG
+from rlmcmc.env import RLMHEnv
+from rlmcmc.policy import RLMHTD3Policy
+from rlmcmc.agent import RLMHDDPG
 
 import os
 import json
