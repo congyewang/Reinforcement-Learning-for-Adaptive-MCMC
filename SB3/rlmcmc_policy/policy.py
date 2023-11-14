@@ -1,20 +1,10 @@
-import logging
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
-from typing import (
-    Any,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    Type,
-    TypeVar,
-    Union
-    )
+from typing import Any, Dict, List, Literal, Optional, Tuple, Type, TypeVar, Union
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 import numpy as np
 
@@ -31,11 +21,10 @@ from stable_baselines3.common.torch_layers import (
     get_actor_critic_arch,
 )
 from stable_baselines3.common.type_aliases import Schedule
+from stable_baselines3.common.utils import polyak_update
 from stable_baselines3.td3.policies import Actor
 
 SelfDDPG = TypeVar("SelfDDPG", bound="DDPG")
-
-logging.basicConfig(level=logging.ERROR)
 
 
 class RLMCMCPolicyInterface(metaclass=ABCMeta):
@@ -98,7 +87,7 @@ class RLMCMCPolicyInterface(metaclass=ABCMeta):
         covariance_matrix = torch.einsum(
             "ij,ik->ijk", low_rank_vector, low_rank_vector
         ) + torch.einsum("i,jk->ijk", magnification, torch.eye(self._sample_dim))
-        logging.debug(f"covariance_matrix: {covariance_matrix}")
+
         return covariance_matrix
 
     @abstractmethod
@@ -146,7 +135,6 @@ class RLMHPolicy(RLMCMCPolicyInterface):
             "ij, ijk -> ik", mcmc_noise, torch.sqrt(current_covariance_matrix)
         )
 
-        logging.debug(f"proposed_sample_RLMHPolicy: {proposed_sample}")
         return proposed_sample
 
     def log_proposal_pdf(
@@ -490,6 +478,88 @@ class RLMHTD3(TD3):
 
         return action, buffer_action
 
+    def train(self, gradient_steps: int, batch_size: int = 100) -> None:
+        # Switch to train mode (this affects batch norm / dropout)
+        self.policy.set_training_mode(True)
+
+        # Update learning rate according to lr schedule
+        self._update_learning_rate([self.actor.optimizer, self.critic.optimizer])
+
+        actor_losses, critic_losses = [], []
+        for _ in range(gradient_steps):
+            self._n_updates += 1
+            # Sample replay buffer
+            replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)  # type: ignore[union-attr]
+
+            with torch.no_grad():
+                # Select action according to policy and add clipped noise
+                # noise = replay_data.actions.clone().data.normal_(0, self.target_policy_noise)
+                # noise = noise.clamp(-self.target_noise_clip, self.target_noise_clip)
+                # next_actions = (self.actor_target(replay_data.next_observations) + noise).clamp(-1, 1)
+                next_actions = self.actor_target(replay_data.next_observations)
+
+                # Compute the next Q-values: min over all critics targets
+                next_q_values = torch.cat(
+                    self.critic_target(replay_data.next_observations, next_actions),
+                    dim=1,
+                )
+                next_q_values, _ = torch.min(next_q_values, dim=1, keepdim=True)
+                target_q_values = (
+                    replay_data.rewards
+                    + (1 - replay_data.dones) * self.gamma * next_q_values
+                )
+
+            # Get current Q-values estimates for each critic network
+            current_q_values = self.critic(
+                replay_data.observations, replay_data.actions
+            )
+
+            # Compute critic loss
+            critic_loss = sum(
+                F.mse_loss(current_q, target_q_values) for current_q in current_q_values
+            )
+            assert isinstance(critic_loss, torch.Tensor)
+            critic_losses.append(critic_loss.item())
+
+            # Optimize the critics
+            self.critic.optimizer.zero_grad()
+            critic_loss.backward()
+            self.critic.optimizer.step()
+
+            # Delayed policy updates
+            if self._n_updates % self.policy_delay == 0:
+                # Compute actor loss
+                actor_loss = -self.critic.q1_forward(
+                    replay_data.observations, self.actor(replay_data.observations)
+                ).mean()
+                actor_losses.append(actor_loss.item())
+
+                # Optimize the actor
+                self.actor.optimizer.zero_grad()
+                actor_loss.backward()
+                self.actor.optimizer.step()
+
+                polyak_update(
+                    self.critic.parameters(), self.critic_target.parameters(), self.tau
+                )
+                polyak_update(
+                    self.actor.parameters(), self.actor_target.parameters(), self.tau
+                )
+                # Copy running stats, see GH issue #996
+                polyak_update(
+                    self.critic_batch_norm_stats,
+                    self.critic_batch_norm_stats_target,
+                    1.0,
+                )
+                polyak_update(
+                    self.actor_batch_norm_stats, self.actor_batch_norm_stats_target, 1.0
+                )
+
+        self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+        if len(actor_losses) > 0:
+            self.logger.record("train/actor_loss", np.mean(actor_losses))
+        self.logger.record("train/critic_loss", np.mean(critic_losses))
+
 
 class RLMHDDPG(DDPG):
     def _sample_action(
@@ -515,6 +585,88 @@ class RLMHDDPG(DDPG):
         action = buffer_action
 
         return action, buffer_action
+
+    def train(self, gradient_steps: int, batch_size: int = 100) -> None:
+        # Switch to train mode (this affects batch norm / dropout)
+        self.policy.set_training_mode(True)
+
+        # Update learning rate according to lr schedule
+        self._update_learning_rate([self.actor.optimizer, self.critic.optimizer])
+
+        actor_losses, critic_losses = [], []
+        for _ in range(gradient_steps):
+            self._n_updates += 1
+            # Sample replay buffer
+            replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)  # type: ignore[union-attr]
+
+            with torch.no_grad():
+                # Select action according to policy and add clipped noise
+                # noise = replay_data.actions.clone().data.normal_(0, self.target_policy_noise)
+                # noise = noise.clamp(-self.target_noise_clip, self.target_noise_clip)
+                # next_actions = (self.actor_target(replay_data.next_observations) + noise).clamp(-1, 1)
+                next_actions = self.actor_target(replay_data.next_observations)
+
+                # Compute the next Q-values: min over all critics targets
+                next_q_values = torch.cat(
+                    self.critic_target(replay_data.next_observations, next_actions),
+                    dim=1,
+                )
+                next_q_values, _ = torch.min(next_q_values, dim=1, keepdim=True)
+                target_q_values = (
+                    replay_data.rewards
+                    + (1 - replay_data.dones) * self.gamma * next_q_values
+                )
+
+            # Get current Q-values estimates for each critic network
+            current_q_values = self.critic(
+                replay_data.observations, replay_data.actions
+            )
+
+            # Compute critic loss
+            critic_loss = sum(
+                F.mse_loss(current_q, target_q_values) for current_q in current_q_values
+            )
+            assert isinstance(critic_loss, torch.Tensor)
+            critic_losses.append(critic_loss.item())
+
+            # Optimize the critics
+            self.critic.optimizer.zero_grad()
+            critic_loss.backward()
+            self.critic.optimizer.step()
+
+            # Delayed policy updates
+            if self._n_updates % self.policy_delay == 0:
+                # Compute actor loss
+                actor_loss = -self.critic.q1_forward(
+                    replay_data.observations, self.actor(replay_data.observations)
+                ).mean()
+                actor_losses.append(actor_loss.item())
+
+                # Optimize the actor
+                self.actor.optimizer.zero_grad()
+                actor_loss.backward()
+                self.actor.optimizer.step()
+
+                polyak_update(
+                    self.critic.parameters(), self.critic_target.parameters(), self.tau
+                )
+                polyak_update(
+                    self.actor.parameters(), self.actor_target.parameters(), self.tau
+                )
+                # Copy running stats, see GH issue #996
+                polyak_update(
+                    self.critic_batch_norm_stats,
+                    self.critic_batch_norm_stats_target,
+                    1.0,
+                )
+                polyak_update(
+                    self.actor_batch_norm_stats, self.actor_batch_norm_stats_target, 1.0
+                )
+
+        self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+        if len(actor_losses) > 0:
+            self.logger.record("train/actor_loss", np.mean(actor_losses))
+        self.logger.record("train/critic_loss", np.mean(critic_losses))
 
 
 def linear_schedule(initial_value: float = 0.001) -> Schedule:
