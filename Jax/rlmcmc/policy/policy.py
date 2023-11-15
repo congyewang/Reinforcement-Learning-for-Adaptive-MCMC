@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from typing import Callable, List
+import gymnasium as gym
 
 import jax
 from jax import numpy as jnp
@@ -12,7 +13,7 @@ from flax.training.train_state import TrainState
 import optax
 
 key = jax.random.PRNGKey(1234)
-key, actor_key, qf1_key = jax.random.split(key, 3)
+key, actor_key, critic_key = jax.random.split(key, 3)
 
 
 class RLMCMCPolicyInterface(metaclass=ABCMeta):
@@ -225,3 +226,107 @@ class RLMHPolicyActor(RLMHPolicy):
 
     def parameterised_low_rank_vector(self, sample: jnp.ndarray) -> jnp.ndarray:
         return self.actor_forward(sample)
+
+    def actor_params_forward(self, params: dict, state: jnp.ndarray):
+        return jax.jit(self.actor_state.apply_fn)(params, state)
+
+
+class RLMHPolicyCritic:
+    def __init__(
+        self, env: gym.Env, learning_rate: float = 0.001, critic_key: dict = critic_key
+    ):
+        self.env = env
+        self.learning_rate = learning_rate
+        self.critic_key = critic_key
+
+        self.init_critic_state()
+
+    def __call__(self, obs: jnp.ndarray, action: jnp.ndarray) -> jnp.ndarray:
+        return self.critic_forward(obs, action)
+
+    class Critic(nn.Module):
+        """
+        Critic Network
+        """
+
+        net_arch: List[int]
+        activation_fn: Callable[
+            [jax.typing.ArrayLike], jax.typing.ArrayLike
+        ] = nn.softplus
+        squash_output: bool = False
+        with_bias: bool = True
+
+        @nn.compact
+        def __call__(self, state: jnp.ndarray, action: jnp.ndarray):
+            return nn.Sequential(self._create_mlp())(
+                jnp.concatenate([state, action], -1)
+            )
+
+        def _create_mlp(self) -> List:
+            """Create a multi layer perceptron (MLP), which is
+            a collection of fully-connected layers each followed by an activation function.
+
+            Args:
+                input_dim (int): Dimension of the input vector.
+                output_dim (int): Dimension of the output vector.
+                net_arch (List[int]): Architecture of the neural network. It represents the number of units per layer. The length of this list is the number of layers.
+                activation_fn (Callable[[jax.typing.ArrayLike], jax.typing.ArrayLike]): The activation function to use after each layer.
+                squash_output (bool): Whether to squash the output using a Tanh activation function.
+                with_bias (bool): If set to False, the layers will not learn an additive bias.
+
+            Returns (List: The structure of the neural network that nn.Sequential can parse.
+
+            """
+
+            # Initialize the neural network
+            if not self.net_arch:
+                self.net_arch = [64, 64]
+
+            # Create the neural network
+            modules = []
+
+            for idx in range(len(self.net_arch)):
+                modules.append(
+                    nn.Dense(
+                        self.net_arch[idx], use_bias=self.with_bias, name=f"Dense{idx}"
+                    )
+                )
+                modules.append(self.activation_fn)
+
+            modules.append(nn.Dense(1, use_bias=self.with_bias, name="Output"))
+
+            if self.squash_output:
+                modules.append(nn.tanh)
+            else:
+                modules.append(self.activation_fn)
+
+            return modules
+
+    class TrainState(TrainState):
+        target_params: flax.core.FrozenDict
+
+    def init_critic_state(self, net_arch=[48, 48]):
+        critic = self.Critic(net_arch=net_arch)
+        init_critic_state = self.TrainState.create(
+            apply_fn=critic.apply,
+            params=critic.init(
+                self.critic_key,
+                self.env.observation_space.sample(),
+                self.env.action_space.sample(),
+            ),
+            target_params=critic.init(
+                self.critic_key,
+                self.env.observation_space.sample(),
+                self.env.action_space.sample(),
+            ),
+            tx=optax.adam(self.learning_rate),
+        )
+        self.critic_state = init_critic_state
+
+    def critic_forward(self, state: jnp.ndarray, action: jnp.ndarray):
+        return jax.jit(self.critic_state.apply_fn)(
+            self.critic_state.params, state, action
+        )
+
+    def critic_params_forward(self, params: dict, state: jnp.ndarray, action: jnp.ndarray):
+        return jax.jit(self.critic_state.apply_fn)(params, state, action)

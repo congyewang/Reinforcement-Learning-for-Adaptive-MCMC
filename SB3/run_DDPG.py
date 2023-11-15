@@ -11,6 +11,7 @@ from stable_baselines3.common.noise import (
 from rlmcmc.env import RLMHEnv
 from rlmcmc.policy import RLMHTD3Policy
 from rlmcmc.agent import RLMHDDPG
+from rlmcmc.toolbox.noise import RLMHNormalActionNoise
 
 import json
 import pandas as pd
