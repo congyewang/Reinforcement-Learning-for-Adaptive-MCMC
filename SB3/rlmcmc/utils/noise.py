@@ -1,5 +1,8 @@
+from typing import Callable
 import numpy as np
 from numpy.typing import DTypeLike
+
+import torch
 
 from stable_baselines3.common.noise import ActionNoise
 
@@ -81,3 +84,61 @@ class RLMHNormalActionNoise(ActionNoise):
 
     def __repr__(self) -> str:
         return f"RLMHNormalActionNoise(\n\tsample_noise_mu={self._sample_noise_mu},\n\tsample_noise_sigma={self._sample_noise_sigma},\n\tlog_proposal_ratio_noise_mu={self._log_proposal_ratio_noise_mu},\n\tlog_proposal_ratio_noise_sigma={self._log_proposal_ratio_noise_sigma}\n)"
+
+
+class RLMHChi2CovNoise(ActionNoise):
+    def __init__(self, noise_df: int = 2, dtype: DTypeLike = torch.Tensor) -> None:
+        assert noise_df > 0 and isinstance(noise_df, int), ValueError(
+            "noise_df must be an integre and greater than 0."
+        )
+        self.noise_df = noise_df
+
+        self._dtype = dtype
+        super().__init__()
+
+    def __call__(self) -> Callable:
+        sample_noise = torch.distributions.chi2.Chi2(self.noise_df)
+        return sample_noise
+
+    def __repr__(self) -> str:
+        return f"RLMHChi2CovNoise(\n\tnoise_df={self.noise_df}\n)"
+
+
+class RLMHHalfCauchyCovNoise(ActionNoise):
+    def __init__(self, scale: float = 1.0, dtype: DTypeLike = torch.Tensor) -> None:
+        assert scale > 0.0 and isinstance(scale, float), ValueError(
+            "noise_df must be a float and greater than 0."
+        )
+        self.scale = scale
+
+        self._dtype = dtype
+        super().__init__()
+
+    def __call__(self) -> Callable:
+        sample_noise = torch.distributions.half_cauchy.HalfCauchy(self.scale)
+        return sample_noise
+
+    def __repr__(self) -> str:
+        return f"RLMHHalfCauchyCovNoise(\n\tscale={self.scale}\n)"
+
+
+class RLMHNormalLowRankVectorNoise(ActionNoise):
+    def __init__(
+        self,
+        loc: torch.Tensor,
+        covariance_matrix: torch.Tensor,
+        dtype: DTypeLike = torch.Tensor,
+    ) -> None:
+        self.loc = loc
+        self.covariance_matrix = covariance_matrix
+        self._dtype = dtype
+        super().__init__()
+
+    def __call__(self) -> Callable:
+        sample_noise = torch.distributions.multivariate_normal.MultivariateNormal(
+            loc=self.loc, covariance_matrix=self.covariance_matrix
+        )
+        return sample_noise
+
+    def __repr__(self) -> str:
+        return f"RLMHNormalLowRankVectorNoise(\n\tloc={self.loc}\n\tcovariance_matrix={self.covariance_matrix}\n)"

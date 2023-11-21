@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
-from typing import Any, Dict, List, Literal, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 
 import torch
 from torch import nn
@@ -239,6 +239,43 @@ class RLMHPolicyActor(Actor, RLMHPolicy):
         return self.policy_mapping(features)
 
 
+class RLMHPolicyActorPertCovMat(RLMHPolicyActor):
+    def __init__(self, covariance_noise: Optional[Callable] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.covariance_noise = covariance_noise
+
+    def parameterised_covariance_matrix(self, sample: torch.Tensor) -> torch.Tensor:
+        low_rank_vector_and_magnification = self.parameterised_low_rank_vector(sample)
+
+        # Extract the low rank vector and magnification
+        low_rank_vector = low_rank_vector_and_magnification[:, 0 : self._sample_dim]
+        magnification = low_rank_vector_and_magnification[:, -1]
+
+        # Construct the covariance matrix
+        covariance_matrix = torch.einsum(
+            "ij,ik->ijk", low_rank_vector, low_rank_vector
+        ) + torch.einsum("i,jk->ijk", magnification, torch.eye(self._sample_dim))
+
+        if self.covariance_noise is None:
+            return covariance_matrix
+        else:
+            return covariance_matrix + torch.diag(
+                self.covariance_noise().sample([self._sample_dim])
+            )
+
+
+class RLMHPolicyActorPertLRVec(RLMHPolicyActor):
+    def __init__(self, low_rank_vector_noise: Callable, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.low_rank_vector_noise = low_rank_vector_noise
+
+    def parameterised_low_rank_vector(self, sample: torch.Tensor) -> torch.Tensor:
+        mu = self._actor_net()
+        return mu(sample) + torch.cat(
+            (self.low_rank_vector_noise().sample(), torch.Tensor([0.0])), dim=0
+        ).unsqueeze(0)
+
+
 class TD3Policy(BasePolicy):
     """Policy class (with both actor and critic) for TD3.
 
@@ -443,3 +480,361 @@ class RLMHTD3Policy(TD3Policy):
             self.actor_kwargs, features_extractor
         )
         return RLMHPolicyActor(**actor_kwargs).to(self.device)
+
+
+class TD3PolicyCovarianceNoise(BasePolicy):
+    """Policy class (with both actor and critic) for TD3.
+
+    Args:
+        observation_space (spaces.Space): Observation space.
+        action_space (spaces.Box): Action space.
+        lr_schedule (Schedule): Learning rate schedule (could be constant).
+        net_arch (Optional[Union[List[int], Dict[str, List[int]]]]): The specification of the policy and value networks.
+        activation_fn (nn.Module): Activation function.
+        features_extractor_class (Type[BaseFeaturesExtractor]): Features extractor to use.
+        features_extractor_kwargs (Type[BaseFeaturesExtractor]): Keyword arguments. to pass to the features extractor.
+        normalize_images (bool): Whether to normalize images or not, dividing by 255.0 (True by default)
+        optimizer_class (Type[torch.optim.Optimizer]): The optimizer to use, ``torch.optim.Adam`` by default
+        optimizer_kwargs (Optional[Dict[str, Any]]): Additional keyword arguments, excluding the learning rate, to pass to the optimizer
+        n_critics (int): Number of critic networks to create.
+        share_features_extractor (bool): Whether to share or not the features extractor between the actor and the critic (this saves computation time)
+    """
+
+    actor: Actor
+    actor_target: Actor
+    critic: ContinuousCritic
+    critic_target: ContinuousCritic
+
+    def __init__(
+        self,
+        observation_space: spaces.Space,
+        action_space: spaces.Box,
+        lr_schedule: Schedule,
+        covariance_noise: Optional[Callable] = None,
+        net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
+        activation_fn: Type[nn.Module] = nn.Softplus,
+        features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
+        features_extractor_kwargs: Optional[Dict[str, Any]] = None,
+        normalize_images: bool = True,
+        optimizer_class: Type[torch.optim.Optimizer] = torch.optim.Adam,
+        optimizer_kwargs: Optional[Dict[str, Any]] = None,
+        n_critics: int = 2,
+        share_features_extractor: bool = False,
+    ):
+        super().__init__(
+            observation_space,
+            action_space,
+            features_extractor_class,
+            features_extractor_kwargs,
+            optimizer_class=optimizer_class,
+            optimizer_kwargs=optimizer_kwargs,
+            squash_output=False,
+            normalize_images=normalize_images,
+        )
+
+        if net_arch is None:
+            if features_extractor_class == NatureCNN:
+                net_arch = [256, 256]
+            else:
+                net_arch = [48, 48]
+
+        actor_arch, critic_arch = get_actor_critic_arch(net_arch)
+
+        self.net_arch = net_arch
+        self.activation_fn = activation_fn
+        self.net_args = {
+            "observation_space": self.observation_space,
+            "action_space": self.action_space,
+            "net_arch": actor_arch,
+            "activation_fn": self.activation_fn,
+            "normalize_images": normalize_images,
+        }
+        self.actor_kwargs = self.net_args.copy()
+        self.actor_kwargs.update({"covariance_noise": covariance_noise})
+        self.critic_kwargs = self.net_args.copy()
+        self.critic_kwargs.update(
+            {
+                "n_critics": n_critics,
+                "net_arch": critic_arch,
+                "share_features_extractor": share_features_extractor,
+            }
+        )
+
+        self.share_features_extractor = share_features_extractor
+
+        self._build(lr_schedule)
+
+    def _build(self, lr_schedule: Schedule) -> None:
+        self.actor = self.make_actor(features_extractor=None)
+        self.actor_target = self.make_actor(features_extractor=None)
+        self.actor_target.load_state_dict(self.actor.state_dict())
+
+        self.actor.optimizer = self.optimizer_class(
+            self.actor.parameters(),
+            lr=lr_schedule(1),  # type: ignore[call-arg]
+            **self.optimizer_kwargs,
+        )
+
+        if self.share_features_extractor:
+            self.critic = self.make_critic(
+                features_extractor=self.actor.features_extractor
+            )
+            self.critic_target = self.make_critic(
+                features_extractor=self.actor_target.features_extractor
+            )
+        else:
+            self.critic = self.make_critic(features_extractor=None)
+            self.critic_target = self.make_critic(features_extractor=None)
+
+        self.critic_target.load_state_dict(self.critic.state_dict())
+        self.critic.optimizer = self.optimizer_class(
+            self.critic.parameters(),
+            lr=lr_schedule(1),  # type: ignore[call-arg]
+            **self.optimizer_kwargs,
+        )
+
+        self.actor_target.set_training_mode(False)
+        self.critic_target.set_training_mode(False)
+
+    def _get_constructor_parameters(self) -> Dict[str, Any]:
+        data = super()._get_constructor_parameters()
+
+        data.update(
+            dict(
+                net_arch=self.net_arch,
+                activation_fn=self.net_args["activation_fn"],
+                n_critics=self.critic_kwargs["n_critics"],
+                lr_schedule=self._dummy_schedule,
+                optimizer_class=self.optimizer_class,
+                optimizer_kwargs=self.optimizer_kwargs,
+                features_extractor_class=self.features_extractor_class,
+                features_extractor_kwargs=self.features_extractor_kwargs,
+                share_features_extractor=self.share_features_extractor,
+            )
+        )
+        return data
+
+    def make_actor(
+        self, features_extractor: Optional[BaseFeaturesExtractor] = None
+    ) -> Actor:
+        actor_kwargs = self._update_features_extractor(
+            self.actor_kwargs, features_extractor
+        )
+        return Actor(**actor_kwargs).to(self.device)
+
+    def make_critic(
+        self, features_extractor: Optional[BaseFeaturesExtractor] = None
+    ) -> ContinuousCritic:
+        critic_kwargs = self._update_features_extractor(
+            self.critic_kwargs, features_extractor
+        )
+        return ContinuousCritic(**critic_kwargs).to(self.device)
+
+    def forward(
+        self, observation: torch.Tensor, deterministic: bool = False
+    ) -> torch.Tensor:
+        return self._predict(observation, deterministic=deterministic)
+
+    def _predict(
+        self, observation: torch.Tensor, deterministic: bool = False
+    ) -> torch.Tensor:
+        return self.actor(observation)
+
+    def set_training_mode(self, mode: bool) -> None:
+        self.actor.set_training_mode(mode)
+        self.critic.set_training_mode(mode)
+        self.training = mode
+
+
+class RLMHTD3PolicyCovarianceNoise(TD3PolicyCovarianceNoise):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.net_arch is None:
+            self.net_arch = [48, 48]
+
+    def make_actor(
+        self, features_extractor: Optional[BaseFeaturesExtractor] = None
+    ) -> Actor:
+        actor_kwargs = self._update_features_extractor(
+            self.actor_kwargs, features_extractor
+        )
+        return RLMHPolicyActorPertCovMat(**actor_kwargs).to(self.device)
+
+
+class TD3PolicyLowRankVectorNoise(BasePolicy):
+    """Policy class (with both actor and critic) for TD3.
+
+    Args:
+        observation_space (spaces.Space): Observation space.
+        action_space (spaces.Box): Action space.
+        lr_schedule (Schedule): Learning rate schedule (could be constant).
+        net_arch (Optional[Union[List[int], Dict[str, List[int]]]]): The specification of the policy and value networks.
+        activation_fn (nn.Module): Activation function.
+        features_extractor_class (Type[BaseFeaturesExtractor]): Features extractor to use.
+        features_extractor_kwargs (Type[BaseFeaturesExtractor]): Keyword arguments. to pass to the features extractor.
+        normalize_images (bool): Whether to normalize images or not, dividing by 255.0 (True by default)
+        optimizer_class (Type[torch.optim.Optimizer]): The optimizer to use, ``torch.optim.Adam`` by default
+        optimizer_kwargs (Optional[Dict[str, Any]]): Additional keyword arguments, excluding the learning rate, to pass to the optimizer
+        n_critics (int): Number of critic networks to create.
+        share_features_extractor (bool): Whether to share or not the features extractor between the actor and the critic (this saves computation time)
+    """
+
+    actor: Actor
+    actor_target: Actor
+    critic: ContinuousCritic
+    critic_target: ContinuousCritic
+
+    def __init__(
+        self,
+        observation_space: spaces.Space,
+        action_space: spaces.Box,
+        lr_schedule: Schedule,
+        low_rank_vector_noise: Optional[Callable] = None,
+        net_arch: Optional[Union[List[int], Dict[str, List[int]]]] = None,
+        activation_fn: Type[nn.Module] = nn.Softplus,
+        features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
+        features_extractor_kwargs: Optional[Dict[str, Any]] = None,
+        normalize_images: bool = True,
+        optimizer_class: Type[torch.optim.Optimizer] = torch.optim.Adam,
+        optimizer_kwargs: Optional[Dict[str, Any]] = None,
+        n_critics: int = 2,
+        share_features_extractor: bool = False,
+    ):
+        super().__init__(
+            observation_space,
+            action_space,
+            features_extractor_class,
+            features_extractor_kwargs,
+            optimizer_class=optimizer_class,
+            optimizer_kwargs=optimizer_kwargs,
+            squash_output=False,
+            normalize_images=normalize_images,
+        )
+
+        if net_arch is None:
+            if features_extractor_class == NatureCNN:
+                net_arch = [256, 256]
+            else:
+                net_arch = [48, 48]
+
+        actor_arch, critic_arch = get_actor_critic_arch(net_arch)
+
+        self.net_arch = net_arch
+        self.activation_fn = activation_fn
+        self.net_args = {
+            "observation_space": self.observation_space,
+            "action_space": self.action_space,
+            "net_arch": actor_arch,
+            "activation_fn": self.activation_fn,
+            "normalize_images": normalize_images,
+        }
+        self.actor_kwargs = self.net_args.copy()
+        self.actor_kwargs.update({"low_rank_vector_noise": low_rank_vector_noise})
+        self.critic_kwargs = self.net_args.copy()
+        self.critic_kwargs.update(
+            {
+                "n_critics": n_critics,
+                "net_arch": critic_arch,
+                "share_features_extractor": share_features_extractor,
+            }
+        )
+
+        self.share_features_extractor = share_features_extractor
+
+        self._build(lr_schedule)
+
+    def _build(self, lr_schedule: Schedule) -> None:
+        self.actor = self.make_actor(features_extractor=None)
+        self.actor_target = self.make_actor(features_extractor=None)
+        self.actor_target.load_state_dict(self.actor.state_dict())
+
+        self.actor.optimizer = self.optimizer_class(
+            self.actor.parameters(),
+            lr=lr_schedule(1),  # type: ignore[call-arg]
+            **self.optimizer_kwargs,
+        )
+
+        if self.share_features_extractor:
+            self.critic = self.make_critic(
+                features_extractor=self.actor.features_extractor
+            )
+            self.critic_target = self.make_critic(
+                features_extractor=self.actor_target.features_extractor
+            )
+        else:
+            self.critic = self.make_critic(features_extractor=None)
+            self.critic_target = self.make_critic(features_extractor=None)
+
+        self.critic_target.load_state_dict(self.critic.state_dict())
+        self.critic.optimizer = self.optimizer_class(
+            self.critic.parameters(),
+            lr=lr_schedule(1),  # type: ignore[call-arg]
+            **self.optimizer_kwargs,
+        )
+
+        self.actor_target.set_training_mode(False)
+        self.critic_target.set_training_mode(False)
+
+    def _get_constructor_parameters(self) -> Dict[str, Any]:
+        data = super()._get_constructor_parameters()
+
+        data.update(
+            dict(
+                net_arch=self.net_arch,
+                activation_fn=self.net_args["activation_fn"],
+                n_critics=self.critic_kwargs["n_critics"],
+                lr_schedule=self._dummy_schedule,
+                optimizer_class=self.optimizer_class,
+                optimizer_kwargs=self.optimizer_kwargs,
+                features_extractor_class=self.features_extractor_class,
+                features_extractor_kwargs=self.features_extractor_kwargs,
+                share_features_extractor=self.share_features_extractor,
+            )
+        )
+        return data
+
+    def make_actor(
+        self, features_extractor: Optional[BaseFeaturesExtractor] = None
+    ) -> Actor:
+        actor_kwargs = self._update_features_extractor(
+            self.actor_kwargs, features_extractor
+        )
+        return Actor(**actor_kwargs).to(self.device)
+
+    def make_critic(
+        self, features_extractor: Optional[BaseFeaturesExtractor] = None
+    ) -> ContinuousCritic:
+        critic_kwargs = self._update_features_extractor(
+            self.critic_kwargs, features_extractor
+        )
+        return ContinuousCritic(**critic_kwargs).to(self.device)
+
+    def forward(
+        self, observation: torch.Tensor, deterministic: bool = False
+    ) -> torch.Tensor:
+        return self._predict(observation, deterministic=deterministic)
+
+    def _predict(
+        self, observation: torch.Tensor, deterministic: bool = False
+    ) -> torch.Tensor:
+        return self.actor(observation)
+
+    def set_training_mode(self, mode: bool) -> None:
+        self.actor.set_training_mode(mode)
+        self.critic.set_training_mode(mode)
+        self.training = mode
+
+
+class RLMHTD3PolicyLowRankVectorNoise(TD3PolicyLowRankVectorNoise):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.net_arch is None:
+            self.net_arch = [48, 48]
+
+    def make_actor(
+        self, features_extractor: Optional[BaseFeaturesExtractor] = None
+    ) -> Actor:
+        actor_kwargs = self._update_features_extractor(
+            self.actor_kwargs, features_extractor
+        )
+        return RLMHPolicyActorPertLRVec(**actor_kwargs).to(self.device)
