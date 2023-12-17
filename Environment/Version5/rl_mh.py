@@ -63,10 +63,10 @@ class RLMHEnv(gym.Env):
         log_proposal_proposed = self.log_proposal_pdf(proposed_sample, current_sample, current_cov)
         log_proposal_current = self.log_proposal_pdf(current_sample, proposed_sample, proposed_cov)
 
-        log_alpha = log_target_proposed \
+        log_alpha = min(0.0, log_target_proposed \
                 - log_target_current \
                 + log_proposal_current \
-                - log_proposal_proposed
+                - log_proposal_proposed)
 
         if np.log(self.np_random.uniform()) < log_alpha:
             accepted_status = True
@@ -144,7 +144,7 @@ class RLMHEnv(gym.Env):
         self.store_state.append(self.state)
         self.store_accetped_status.append(True)
         self.store_reward.append(0.0)
-        self.store_log_accetance_rate.append(np.array([0.0]))
+        self.store_log_accetance_rate.append(0.0)
 
         # Information
         info = {

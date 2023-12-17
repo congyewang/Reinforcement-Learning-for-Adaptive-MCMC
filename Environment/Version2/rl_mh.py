@@ -48,7 +48,7 @@ class RLMHEnv(gym.Env):
         logging.info(f"Proposed Sample: {proposed_sample}")
 
         # Accept/Reject Process
-        log_alpha = self.log_target_pdf(proposed_sample) - self.log_target_pdf(current_sample) + log_proposed_density_ratio
+        log_alpha = min(0.0, self.log_target_pdf(proposed_sample) - self.log_target_pdf(current_sample) + log_proposed_density_ratio)
 
         if np.log(self.np_random.uniform()) < log_alpha:
             accepted_status = True
@@ -118,7 +118,7 @@ class RLMHEnv(gym.Env):
         self.store_state.append(self.state)
         self.store_accetped_status.append(True)
         self.store_reward.append(0.0)
-        self.store_log_accetance_rate.append(np.array([0.0]))
+        self.store_log_accetance_rate.append(0.0)
 
         # Information
         info = {
