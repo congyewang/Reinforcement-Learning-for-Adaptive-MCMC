@@ -8,6 +8,8 @@ from scipy.stats import multivariate_normal
 
 import logging
 
+from mcmctoolbox.functoolbox import nearestPD
+
 INF = 3.4028235e+38 # Corresponds to the value of FLT_MAX in C++
 
 
@@ -40,7 +42,9 @@ class RLMHEnv(gym.Env):
         self.store_reward = []
 
     def log_proposal_pdf(self, x, mean, cov):
-        return multivariate_normal.logpdf(x, mean.flatten(), cov, allow_singular=False)
+        """Multivariate normal distribution."""
+        # return multivariate_normal.logpdf(x, mean.flatten(), cov, allow_singular=False)
+        return (-0.5 * len(mean) * np.log(2 * np.pi) - 0.5 * np.log(np.linalg.det(cov)) - 0.5 * (x - mean) @ np.linalg.inv(cov) @ (x - mean).T).squeeze()
 
     def step(self, action):
         # Extract current sample
@@ -59,8 +63,10 @@ class RLMHEnv(gym.Env):
         # Accept/Reject Process
         log_target_proposed = self.log_target_pdf(proposed_sample)
         log_target_current = self.log_target_pdf(current_sample)
-        log_proposal_proposed = self.log_proposal_pdf(proposed_sample, current_sample, current_cov)
-        log_proposal_current = self.log_proposal_pdf(current_sample, proposed_sample, proposed_cov)
+
+        log_proposal_proposed = self.log_proposal_pdf(proposed_sample, current_sample, nearestPD(current_cov))
+
+        log_proposal_current = self.log_proposal_pdf(current_sample, proposed_sample, nearestPD(proposed_cov))
 
         log_alpha = min(0.0, log_target_proposed \
                 - log_target_current \
