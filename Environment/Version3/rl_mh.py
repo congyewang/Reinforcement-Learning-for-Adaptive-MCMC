@@ -41,6 +41,17 @@ class RLMHEnv(gym.Env):
         self.store_accetped_status = []
         self.store_reward = []
 
+        self._store_proposed_sample = []
+        self._store_current_sample = []
+
+        self._store_log_target_proposed = []
+        self._store_log_target_current = []
+        self._store_log_proposal_proposed = []
+        self._store_log_proposal_current = []
+
+        self._store_proposed_nearest_cov = []
+        self._store_current_nearest_cov = []
+
     def log_proposal_pdf(self, x, mean, cov):
         """Multivariate normal distribution."""
         # return multivariate_normal.logpdf(x, mean.flatten(), cov, allow_singular=False)
@@ -64,9 +75,18 @@ class RLMHEnv(gym.Env):
         log_target_proposed = self.log_target_pdf(proposed_sample)
         log_target_current = self.log_target_pdf(current_sample)
 
-        log_proposal_proposed = self.log_proposal_pdf(proposed_sample, current_sample, nearestPD(current_cov))
+        ## Avoid -np.inf
+        if np.isneginf(log_target_proposed):
+            log_target_proposed = -INF
+        if np.isneginf(log_target_current):
+            log_target_current = -INF
 
-        log_proposal_current = self.log_proposal_pdf(current_sample, proposed_sample, nearestPD(proposed_cov))
+        nearest_cov_proposed = nearestPD(proposed_cov)
+        nearest_cov_current = nearestPD(current_cov)
+
+        log_proposal_proposed = self.log_proposal_pdf(proposed_sample, current_sample, nearest_cov_current)
+
+        log_proposal_current = self.log_proposal_pdf(current_sample, proposed_sample, nearest_cov_proposed)
 
         log_alpha = min(0.0, log_target_proposed \
                 - log_target_current \
@@ -89,6 +109,17 @@ class RLMHEnv(gym.Env):
         self.store_accetped_status.append(accepted_status)
         self.store_action.append(action)
         self.store_log_accetance_rate.append(log_alpha)
+
+        self._store_proposed_sample.append(proposed_sample)
+        self._store_current_sample.append(current_sample)
+
+        self._store_log_target_proposed.append(log_target_proposed)
+        self._store_log_target_current.append(log_target_current)
+        self._store_log_proposal_proposed.append(log_proposal_proposed)
+        self._store_log_proposal_current.append(log_proposal_current)
+
+        self._store_proposed_nearest_cov.append(nearest_cov_proposed)
+        self._store_current_nearest_cov.append(nearest_cov_current)
 
         # Calculate Reward
         reward = (np.power(np.linalg.norm(current_sample - proposed_sample, 2), 2) * np.exp(log_alpha)).flatten()[0]
