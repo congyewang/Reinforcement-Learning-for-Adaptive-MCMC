@@ -32,7 +32,7 @@ class RLMHEnv(gym.Env):
         self.observation_space = spaces.Box(low=-INF, high=INF, shape=(1, 2*sample_dim), dtype=np.float64)
 
         # Action specification
-        self.action_space = spaces.Box(low=0.0, high=INF, shape=(1, 2 * sample_dim**2 + sample_dim), dtype=np.float64)
+        self.action_space = spaces.Box(low=0.0, high=INF, shape=(1, 2 * sample_dim), dtype=np.float64)
 
         # Store
         self.store_state = []
@@ -54,22 +54,35 @@ class RLMHEnv(gym.Env):
 
     def log_proposal_pdf(self, x, mean, cov):
         """Multivariate normal distribution."""
-        return multivariate_normal.logpdf(x, mean.flatten(), cov, allow_singular=False)
+        return multivariate_normal.logpdf(x, mean.flatten(), cov, allow_singular=False).squeeze()
         # return (-0.5 * len(mean) * np.log(2 * np.pi) - 0.5 * np.log(np.linalg.det(cov)) - 0.5 * (x - mean) @ np.linalg.inv(cov) @ (x - mean).T).squeeze()
+
+    def cov(self, low_rank_vec):
+        """
+        Restored low rank vector and magnification to covariance matrix.
+        """
+        return (
+            np.outer(low_rank_vec, low_rank_vec)
+        )  # Outer Product
 
     def step(self, action):
         # Extract current sample
         current_sample = self.state[:, 0:self.sample_dim]
-        # mcmc_noise = self.state[:, self.sample_dim:]
+        mcmc_noise = self.state[:, self.sample_dim:]
 
         # Extract Current Covariance, Proposed Sample, and Proposed Covariance
-        current_cov_vec = action[:, 0:self.sample_dim**2]
-        current_cov = current_cov_vec.reshape(self.sample_dim, self.sample_dim)
+        current_cov_vec = action[:, 0:self.sample_dim]
+        current_cov = self.cov(current_cov_vec)
 
-        proposed_sample = action[:, self.sample_dim**2:self.sample_dim**2+self.sample_dim]
+        proposed_cov_vec = action[:, self.sample_dim:]
+        proposed_cov = self.cov(proposed_cov_vec)
 
-        proposed_cov_vec = action[:, self.sample_dim**2+self.sample_dim:]
-        proposed_cov = proposed_cov_vec.reshape(self.sample_dim, self.sample_dim)
+        # Avoid Singular Covariance
+        nearest_cov_proposed = nearestPD(proposed_cov)
+        nearest_cov_current = nearestPD(current_cov)
+
+        # Generate Proposed Sample
+        proposed_sample = current_sample + np.matmul(mcmc_noise, np.linalg.cholesky(nearest_cov_current))
 
         # Accept/Reject Process
         log_target_proposed = self.log_target_pdf(proposed_sample)
@@ -81,16 +94,8 @@ class RLMHEnv(gym.Env):
         if np.isneginf(log_target_current):
             log_target_current = -INF
 
-        nearest_cov_proposed = nearestPD(proposed_cov)
-        nearest_cov_current = nearestPD(current_cov)
-
         log_proposal_proposed = self.log_proposal_pdf(proposed_sample, current_sample, nearest_cov_current)
-
-        try:
-            log_proposal_current = self.log_proposal_pdf(current_sample, proposed_sample, nearest_cov_proposed)
-        except np.linalg.LinAlgError:
-            print("nearest_cov_proposed: ", nearest_cov_proposed)
-            raise
+        log_proposal_current = self.log_proposal_pdf(current_sample, proposed_sample, nearest_cov_proposed)
 
         log_alpha = min(0.0, log_target_proposed \
                 - log_target_current \

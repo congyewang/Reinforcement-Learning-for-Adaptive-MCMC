@@ -54,8 +54,8 @@ class RLMHEnv(gym.Env):
 
     def log_proposal_pdf(self, x, mean, cov):
         """Multivariate normal distribution."""
-        # return multivariate_normal.logpdf(x, mean.flatten(), cov, allow_singular=False)
-        return (-0.5 * len(mean) * np.log(2 * np.pi) - 0.5 * np.log(np.linalg.det(cov)) - 0.5 * (x - mean) @ np.linalg.inv(cov) @ (x - mean).T).squeeze()
+        return multivariate_normal.logpdf(x, mean.flatten(), cov, allow_singular=False).squeeze()
+        # return (-0.5 * len(mean) * np.log(2 * np.pi) - 0.5 * np.log(np.linalg.det(cov)) - 0.5 * (x - mean) @ np.linalg.inv(cov) @ (x - mean).T).squeeze()
 
     def step(self, action):
         # Extract current sample
@@ -66,10 +66,20 @@ class RLMHEnv(gym.Env):
         current_cov_vec = action[:, 0:self.sample_dim**2]
         current_cov = current_cov_vec.reshape(self.sample_dim, self.sample_dim)
 
-        proposed_sample = current_sample + np.matmul(mcmc_noise, np.linalg.cholesky(current_cov))
-
         proposed_cov_vec = action[:, self.sample_dim**2:]
         proposed_cov = proposed_cov_vec.reshape(self.sample_dim, self.sample_dim)
+
+        # Avoid Singular Covariance
+        try:
+            nearest_cov_proposed = nearestPD(proposed_cov)
+        except np.linalg.LinAlgError:
+            print("proposed_cov:", proposed_cov)
+            raise
+
+        nearest_cov_current = nearestPD(current_cov)
+
+        # Generate Proposed Sample
+        proposed_sample = current_sample + np.matmul(mcmc_noise, np.linalg.cholesky(nearest_cov_current))
 
         # Accept/Reject Process
         log_target_proposed = self.log_target_pdf(proposed_sample)
@@ -80,9 +90,6 @@ class RLMHEnv(gym.Env):
             log_target_proposed = -INF
         if np.isneginf(log_target_current):
             log_target_current = -INF
-
-        nearest_cov_proposed = nearestPD(proposed_cov)
-        nearest_cov_current = nearestPD(current_cov)
 
         log_proposal_proposed = self.log_proposal_pdf(proposed_sample, current_sample, nearest_cov_current)
 
