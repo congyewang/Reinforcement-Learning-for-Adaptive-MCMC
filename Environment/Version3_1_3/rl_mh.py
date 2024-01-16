@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.ERROR)
 
 
 class RLMHEnv(gym.Env):
-    def __init__(self, log_target_pdf, sample_dim=2, total_timesteps=10_000):
+    def __init__(self, log_target_pdf, sample_dim=2, total_timesteps=10_000, p=2):
         super().__init__()
 
         # Target Distribution
@@ -25,6 +25,7 @@ class RLMHEnv(gym.Env):
 
         # Parameter
         self.sample_dim = sample_dim
+        self.p = p
         self.total_timesteps = total_timesteps
         self._steps = 0
 
