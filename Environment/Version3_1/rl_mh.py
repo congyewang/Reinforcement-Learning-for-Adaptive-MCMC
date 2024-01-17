@@ -76,16 +76,13 @@ class RLMHEnv(gym.Env):
         proposed_cov = proposed_cov_vec.reshape(self.sample_dim, self.sample_dim)
 
         # Avoid Singular Covariance
-        try:
-            nearest_cov_proposed = nearestPD(proposed_cov)
-        except np.linalg.LinAlgError:
-            print("proposed_cov:", proposed_cov)
-            raise
-
+        nearest_cov_proposed = nearestPD(proposed_cov)
         nearest_cov_current = nearestPD(current_cov)
 
+        L = np.linalg.cholesky(nearest_cov_current)
+
         # Generate Proposed Sample
-        proposed_sample = current_sample + np.matmul(mcmc_noise, np.linalg.cholesky(nearest_cov_current))
+        proposed_sample = current_sample + np.matmul(mcmc_noise, L)
 
         # Accept/Reject Process
         log_target_proposed = self.log_target_pdf(proposed_sample)
@@ -97,9 +94,17 @@ class RLMHEnv(gym.Env):
         if np.isneginf(log_target_current):
             log_target_current = -INF
 
-        log_proposal_proposed = self.log_proposal_pdf(proposed_sample, current_sample, nearest_cov_current)
+        try:
+            log_proposal_proposed = self.log_proposal_pdf(proposed_sample, current_sample, nearest_cov_current)
+        except Exception as e:
+            print("nearest_cov_current:", nearest_cov_current)
+            raise
 
-        log_proposal_current = self.log_proposal_pdf(current_sample, proposed_sample, nearest_cov_proposed)
+        try:
+            log_proposal_current = self.log_proposal_pdf(current_sample, proposed_sample, nearest_cov_proposed)
+        except Exception as e:
+            print("nearest_cov_proposed:", nearest_cov_proposed)
+            raise
 
         log_alpha = min(0.0, log_target_proposed \
                 - log_target_current \
