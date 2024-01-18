@@ -1,9 +1,0 @@
-% computes the true Q function
-function out = Q(x,a)
-
-out = trunc_moment(-abs(x),abs(x),x,x,a) ...
-      + ( my_normpdf(x,0,sqrt(1+a^2)) / my_normpdf(x,0,1)) ...
-        * ( trunc_moment(-inf,-abs(x),x,x/(1+a^2),a/sqrt(1+a^2)) ... 
-            + trunc_moment(abs(x),inf,x,x/(1+a^2),a/sqrt(1+a^2)) );
-
-end
