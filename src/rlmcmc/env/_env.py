@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import multivariate_normal
 from scipy.special import expit
-from statsmodels.stats.correlation_tools import cov_nearest
+from ..utils import Toolbox
 
 from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple, Union, Dict, Any
@@ -91,19 +91,19 @@ class RLMHEnvBase(gym.Env, ABC):
         )
 
         # Extract Flat Current Covariance and Flat Proposed Covariance
-        current_vec, proposed_vec = np.split(action, [self.sample_dim**2], axis=0)
+        current_vector, proposed_vector = np.split(action, [self.sample_dim**2], axis=0)
 
         # Reshape to Covariance Matrix
-        current_cov = current_vec.reshape(self.sample_dim, self.sample_dim)
-        proposed_cov = proposed_vec.reshape(self.sample_dim, self.sample_dim)
+        current_covariance = current_vector.reshape(self.sample_dim, self.sample_dim)
+        proposed_covariance = proposed_vector.reshape(self.sample_dim, self.sample_dim)
 
         # Avoid Singular Covariance
-        nearest_proposed_cov: NDArray[np.float32] = cov_nearest(proposed_cov)
-        nearest_current_cov: NDArray[np.float32] = cov_nearest(current_cov)
+        nearest_proposed_covariance: NDArray[np.float32] = cov_nearest(proposed_covariance)
+        nearest_current_covariance: NDArray[np.float32] = cov_nearest(current_covariance)
 
         # Generate Proposed Sample
         proposed_sample = current_sample + np.matmul(
-            mcmc_noise, np.linalg.cholesky(nearest_current_cov)
+            mcmc_noise, np.linalg.cholesky(nearest_current_covariance)
         )
 
         # Calculate Log Target Density
@@ -118,10 +118,10 @@ class RLMHEnvBase(gym.Env, ABC):
 
         # Calculate Log Proposal Densitys
         log_proposal_proposed = self.log_proposal_pdf(
-            proposed_sample, current_sample, nearest_current_cov
+            proposed_sample, current_sample, nearest_current_covariance
         )
         log_proposal_current = self.log_proposal_pdf(
-            current_sample, proposed_sample, nearest_proposed_cov
+            current_sample, proposed_sample, nearest_proposed_covariance
         )
 
         # Calculate Log Acceptance Rate
@@ -236,8 +236,8 @@ class RLMHEnvV31(RLMHEnvBase):
         self._store_log_proposal_proposed: List[np.float32] = []
         self._store_log_proposal_current: List[np.float32] = []
 
-        self._store_nearest_proposed_cov: List[NDArray[np.float32]] = []
-        self._store_nearest_current_cov: List[NDArray[np.float32]] = []
+        self._store_nearest_proposed_covariance: List[NDArray[np.float32]] = []
+        self._store_nearest_current_covariance: List[NDArray[np.float32]] = []
 
     def distance_function(
         self, current_sample: NDArray[np.float32], proposed_sample: NDArray[np.float32]
@@ -274,19 +274,19 @@ class RLMHEnvV31(RLMHEnvBase):
         )
 
         # Extract Flat Current Covariance and Flat Proposed Covariance
-        current_vec, proposed_vec = np.split(action, [self.sample_dim**2], axis=0)
+        current_vector, proposed_vector = np.split(action, [self.sample_dim**2], axis=0)
 
         # Reshape to Covariance Matrix
-        current_cov = current_vec.reshape(self.sample_dim, self.sample_dim)
-        proposed_cov = proposed_vec.reshape(self.sample_dim, self.sample_dim)
+        current_covariance = current_vector.reshape(self.sample_dim, self.sample_dim)
+        proposed_covariance = proposed_vector.reshape(self.sample_dim, self.sample_dim)
 
         # Avoid Singular Covariance
-        nearest_proposed_cov: NDArray[np.float32] = cov_nearest(proposed_cov)
-        nearest_current_cov: NDArray[np.float32] = cov_nearest(current_cov)
+        nearest_proposed_covariance: NDArray[np.float32] = Toolbox.nearestPD(proposed_covariance)
+        nearest_current_covariance: NDArray[np.float32] = Toolbox.nearestPD(current_covariance)
 
         # Generate Proposed Sample
         proposed_sample = current_sample + np.matmul(
-            mcmc_noise, np.linalg.cholesky(nearest_current_cov)
+            mcmc_noise, np.linalg.cholesky(nearest_current_covariance)
         )
 
         # Calculate Log Target Density
@@ -300,12 +300,21 @@ class RLMHEnvV31(RLMHEnvBase):
             log_target_current = -INF
 
         # Calculate Log Proposal Densitys
-        log_proposal_proposed = self.log_proposal_pdf(
-            proposed_sample, current_sample, nearest_current_cov
-        )
-        log_proposal_current = self.log_proposal_pdf(
-            current_sample, proposed_sample, nearest_proposed_cov
-        )
+        try:
+            log_proposal_proposed = self.log_proposal_pdf(
+                proposed_sample, current_sample, nearest_current_covariance
+            )
+        except Exception:
+            print("nearest_current_covariance:", nearest_current_covariance)
+            raise
+
+        try:
+            log_proposal_current = self.log_proposal_pdf(
+                current_sample, proposed_sample, nearest_proposed_covariance
+            )
+        except Exception:
+            print("nearest_proposed_covariance:", nearest_proposed_covariance)
+            raise
 
         # Calculate Log Acceptance Rate
         log_alpha = np.min(
@@ -344,8 +353,8 @@ class RLMHEnvV31(RLMHEnvBase):
         self._store_log_proposal_proposed.append(log_proposal_proposed)
         self._store_log_proposal_current.append(log_proposal_current)
 
-        self._store_nearest_proposed_cov.append(nearest_proposed_cov)
-        self._store_nearest_current_cov.append(nearest_current_cov)
+        self._store_nearest_proposed_covariance.append(nearest_proposed_covariance)
+        self._store_nearest_current_covariance.append(nearest_current_covariance)
 
         # Calculate Reward
         reward = self.reward_function(current_sample, proposed_sample, log_alpha)
