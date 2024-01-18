@@ -170,7 +170,7 @@ cython_debug/
 runs/
 
 # PosteriorDB
-Python/posteriordb/
+posteriordb/
 
 # Stan
 *.rds
