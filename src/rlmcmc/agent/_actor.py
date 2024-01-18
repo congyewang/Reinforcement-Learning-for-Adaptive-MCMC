@@ -7,18 +7,20 @@ import gymnasium as gym
 
 
 class Actor(nn.Module):
-    def __init__(self, env: gym.spaces.Box, sample_dim: int = 2) -> None:
+    def __init__(self, env: gym.spaces.Box) -> None:
         super().__init__()
 
-        self.sample_dim = sample_dim
+        self.sample_dim = int(np.array(env.single_observation_space.shape).prod()) >> 1
 
-        self.fc1 = nn.Linear(np.array(env.single_observation_space.shape).prod(), 24)
+        self.fc1 = nn.Linear(self.sample_dim, 24)
         self.fc2 = nn.Linear(24, 24)
-        self.fc_mu = nn.Linear(24, np.prod(env.single_action_space.shape))
+        self.fc_mu = nn.Linear(24, self.sample_dim + 1)
 
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
         "Mu function"
-        current_sample, mcmc_noise = torch.split(observation, self.sample_dim, dim=1)
+        current_sample, mcmc_noise = torch.split(
+            observation, [self.sample_dim, self.sample_dim], dim=1
+        )
         proposed_sample = self.generate_proposed_sample(current_sample, mcmc_noise)
 
         current_covariance_flatten = self.covariance(current_sample).reshape(
@@ -41,7 +43,7 @@ class Actor(nn.Module):
         Restored low rank vector and magnification to covariance matrix.
         """
         low_rank_vector, mag = torch.split(
-            self.low_rank_vector_and_magnification(x), self.sample_dim, dim=1
+            self.low_rank_vector_and_magnification(x), [self.sample_dim, 1], dim=1
         )
 
         return (
@@ -53,5 +55,7 @@ class Actor(nn.Module):
         self, current_sample: torch.Tensor, mcmc_noise: torch.Tensor
     ) -> torch.Tensor:
         return current_sample + torch.einsum(
-            "ij,ijk->ik", mcmc_noise, torch.linalg.cholesky(self.covariance(current_sample))
+            "ij,ijk->ik",
+            mcmc_noise,
+            torch.linalg.cholesky(self.covariance(current_sample)),
         )
