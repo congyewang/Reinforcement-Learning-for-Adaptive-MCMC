@@ -17,7 +17,7 @@ INF = 3.4028235e38  # Corresponds to the value of FLT_MAX in C++
 class RLMHEnvBase(gym.Env, ABC):
     def __init__(
         self,
-        log_target_pdf: Callable[[NDArray[np.float32]], np.float32],
+        log_target_pdf: Callable[[NDArray[np.float64]], np.float64],
         sample_dim: int = 2,
         total_timesteps: int = 10_000,
     ) -> None:
@@ -33,52 +33,52 @@ class RLMHEnvBase(gym.Env, ABC):
 
         # Observation specification
         self.observation_space = spaces.Box(
-            low=-INF, high=INF, shape=(2 * sample_dim,), dtype=np.float32
+            low=-INF, high=INF, shape=(2 * sample_dim,), dtype=np.float64
         )
 
         # Action specification
         self.action_space = spaces.Box(
-            low=-INF, high=INF, shape=(2 * sample_dim**2,), dtype=np.float32
+            low=-INF, high=INF, shape=(2 * sample_dim**2,), dtype=np.float64
         )
 
         # Store
-        self.store_observation: List[NDArray[np.float32]] = []
-        self.store_action: List[NDArray[np.float32]] = []
-        self.store_log_accetance_rate: List[np.float32] = []
+        self.store_observation: List[NDArray[np.float64]] = []
+        self.store_action: List[NDArray[np.float64]] = []
+        self.store_log_accetance_rate: List[np.float64] = []
         self.store_accetped_status: List[bool] = []
-        self.store_reward: List[np.float32] = []
+        self.store_reward: List[np.float64] = []
 
     def log_proposal_pdf(
         self,
-        x: NDArray[np.float32],
-        mean: NDArray[np.float32],
-        cov: NDArray[np.float32],
-    ) -> np.float32:
+        x: NDArray[np.float64],
+        mean: NDArray[np.float64],
+        cov: NDArray[np.float64],
+    ) -> np.float64:
         return multivariate_normal.logpdf(x, mean.flatten(), cov)
 
     @abstractmethod
     def distance_function(
-        self, current_sample: NDArray[np.float32], proposed_sample: NDArray[np.float32]
-    ) -> np.float32:
+        self, current_sample: NDArray[np.float64], proposed_sample: NDArray[np.float64]
+    ) -> np.float64:
         raise NotImplementedError("distance_function is not implemented.")
 
     @abstractmethod
     def reward_function(
         self,
-        current_sample: NDArray[np.float32],
-        proposed_sample: NDArray[np.float32],
-        log_alpha: np.float32,
-    ) -> np.float32:
+        current_sample: NDArray[np.float64],
+        proposed_sample: NDArray[np.float64],
+        log_alpha: np.float64,
+    ) -> np.float64:
         raise NotImplementedError("reward_function is not implemented.")
 
     def step(
-        self, action: NDArray[np.float32]
+        self, action: NDArray[np.float64]
     ) -> Tuple[
-        NDArray[np.float32],
-        np.float32,
+        NDArray[np.float64],
+        np.float64,
         bool,
         bool,
-        Dict[str, Union[NDArray[np.float32], bool, np.float32]],
+        Dict[str, Union[NDArray[np.float64], bool, np.float64]],
     ]:
         # Check Action Shape
         assert (
@@ -98,8 +98,8 @@ class RLMHEnvBase(gym.Env, ABC):
         proposed_covariance = proposed_vector.reshape(self.sample_dim, self.sample_dim)
 
         # Avoid Singular Covariance
-        nearest_proposed_covariance: NDArray[np.float32] = cov_nearest(proposed_covariance)
-        nearest_current_covariance: NDArray[np.float32] = cov_nearest(current_covariance)
+        nearest_proposed_covariance: NDArray[np.float64] = cov_nearest(proposed_covariance)
+        nearest_current_covariance: NDArray[np.float64] = cov_nearest(current_covariance)
 
         # Generate Proposed Sample
         proposed_sample = current_sample + np.matmul(
@@ -203,9 +203,9 @@ class RLMHEnvBase(gym.Env, ABC):
 
         # Store
         self.store_observation.append(self.observation)
-        self.store_log_accetance_rate.append(np.float32(0.0))
+        self.store_log_accetance_rate.append(np.float64(0.0))
         self.store_accetped_status.append(True)
-        self.store_reward.append(np.float32(0.0))
+        self.store_reward.append(np.float64(0.0))
 
         # Information Dictionary
         info = {
@@ -221,47 +221,47 @@ class RLMHEnvBase(gym.Env, ABC):
 class RLMHEnvV31(RLMHEnvBase):
     def __init__(
         self,
-        log_target_pdf: Callable[[NDArray[np.float32]], np.float32],
+        log_target_pdf: Callable[[NDArray[np.float64]], np.float64],
         sample_dim: int = 2,
         total_timesteps: int = 10_000,
     ) -> None:
         super().__init__(log_target_pdf, sample_dim, total_timesteps)
 
         # Add Additional Store
-        self._store_proposed_sample: List[NDArray[np.float32]] = []
-        self._store_current_sample: List[NDArray[np.float32]] = []
+        self._store_proposed_sample: List[NDArray[np.float64]] = []
+        self._store_current_sample: List[NDArray[np.float64]] = []
 
-        self._store_log_target_proposed: List[np.float32] = []
-        self._store_log_target_current: List[np.float32] = []
-        self._store_log_proposal_proposed: List[np.float32] = []
-        self._store_log_proposal_current: List[np.float32] = []
+        self._store_log_target_proposed: List[np.float64] = []
+        self._store_log_target_current: List[np.float64] = []
+        self._store_log_proposal_proposed: List[np.float64] = []
+        self._store_log_proposal_current: List[np.float64] = []
 
-        self._store_nearest_proposed_covariance: List[NDArray[np.float32]] = []
-        self._store_nearest_current_covariance: List[NDArray[np.float32]] = []
+        self._store_nearest_proposed_covariance: List[NDArray[np.float64]] = []
+        self._store_nearest_current_covariance: List[NDArray[np.float64]] = []
 
     def distance_function(
-        self, current_sample: NDArray[np.float32], proposed_sample: NDArray[np.float32]
-    ) -> np.float32:
+        self, current_sample: NDArray[np.float64], proposed_sample: NDArray[np.float64]
+    ) -> np.float64:
         return np.linalg.norm(current_sample - proposed_sample, 2)
 
     def reward_function(
         self,
-        current_sample: NDArray[np.float32],
-        proposed_sample: NDArray[np.float32],
-        log_alpha: np.float32,
-    ) -> np.float32:
+        current_sample: NDArray[np.float64],
+        proposed_sample: NDArray[np.float64],
+        log_alpha: np.float64,
+    ) -> np.float64:
         return np.power(
             self.distance_function(current_sample, proposed_sample), 2
         ) * np.exp(log_alpha)
 
     def step(
-        self, action: NDArray[np.float32]
+        self, action: NDArray[np.float64]
     ) -> Tuple[
-        NDArray[np.float32],
-        np.float32,
+        NDArray[np.float64],
+        np.float64,
         bool,
         bool,
-        Dict[str, Union[NDArray[np.float32], bool, np.float32]],
+        Dict[str, Union[NDArray[np.float64], bool, np.float64]],
     ]:
         # Check Action Shape
         assert (
@@ -281,8 +281,8 @@ class RLMHEnvV31(RLMHEnvBase):
         proposed_covariance = proposed_vector.reshape(self.sample_dim, self.sample_dim)
 
         # Avoid Singular Covariance
-        nearest_proposed_covariance: NDArray[np.float32] = Toolbox.nearestPD(proposed_covariance)
-        nearest_current_covariance: NDArray[np.float32] = Toolbox.nearestPD(current_covariance)
+        nearest_proposed_covariance: NDArray[np.float64] = Toolbox.nearestPD(proposed_covariance)
+        nearest_current_covariance: NDArray[np.float64] = Toolbox.nearestPD(current_covariance)
 
         # Generate Proposed Sample
         proposed_sample = current_sample + np.matmul(
@@ -388,20 +388,20 @@ class RLMHEnvV31(RLMHEnvBase):
 
 class RLMHEnvV31A(RLMHEnvV31):
     def distance_function(
-        self, current_sample: NDArray[np.float32], proposed_sample: NDArray[np.float32]
-    ) -> np.float32:
+        self, current_sample: NDArray[np.float64], proposed_sample: NDArray[np.float64]
+    ) -> np.float64:
         return np.min(np.abs(current_sample - proposed_sample))
 
 
 class RLMHEnvV31B(RLMHEnvV31A):
     def reward_function(
         self,
-        current_sample: NDArray[np.float32],
-        proposed_sample: NDArray[np.float32],
-        log_alpha: np.float32,
+        current_sample: NDArray[np.float64],
+        proposed_sample: NDArray[np.float64],
+        log_alpha: np.float64,
         weight: float = 0.7,
         kappa: float = 1.0,
-    ) -> np.float32:
+    ) -> np.float64:
         return weight * expit(
             kappa
             * self.distance_function(current_sample, proposed_sample)

@@ -1,6 +1,8 @@
+import re
 import numpy as np
 import gymnasium as gym
 from dataclasses import dataclass
+from scipy.stats._multivariate import _PSD
 from scipy.stats import multivariate_normal as mvn
 
 from typing import Callable
@@ -39,7 +41,7 @@ class Args:
     """total timesteps of the experiments"""
     learning_rate: float = 3e-4
     """the learning rate of the optimizer"""
-    buffer_size: int = int(1e3)
+    buffer_size: int = int(1e6)
     """the replay memory buffer size"""
     gamma: float = 0.99
     """the discount factor gamma"""
@@ -115,7 +117,7 @@ class Toolbox:
         # below suggests.
         I = np.eye(A.shape[0])
         k = 1
-        while not isPD(A3):
+        while not cls.isPD(A3):
             mineig = np.min(np.real(np.linalg.eigvals(A3)))
             A3 += I * (-mineig * k**2 + spacing)
             k += 1

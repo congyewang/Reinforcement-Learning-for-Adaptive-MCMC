@@ -12,9 +12,10 @@ class Actor(nn.Module):
 
         self.sample_dim = int(np.array(env.single_observation_space.shape).prod()) >> 1
 
-        self.fc1 = nn.Linear(self.sample_dim, 24)
-        self.fc2 = nn.Linear(24, 24)
-        self.fc_mu = nn.Linear(24, self.sample_dim + 1)
+        self.fc1 = nn.Linear(self.sample_dim, 32)
+        self.fc2 = nn.Linear(32, 16)
+        self.fc3 = nn.Linear(16, 8)
+        self.fc_mu = nn.Linear(8, self.sample_dim + 1)
 
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
         "Mu function"
@@ -33,8 +34,9 @@ class Actor(nn.Module):
         return torch.hstack([current_covariance_flatten, proposed_covariance_flatten])
 
     def low_rank_vector_and_magnification(self, x: torch.Tensor) -> torch.Tensor:
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = F.softplus(self.fc1(x))
+        x = F.softplus(self.fc2(x))
+        x = F.softplus(self.fc3(x))
         x = self.fc_mu(x)
         return x
 
@@ -54,8 +56,14 @@ class Actor(nn.Module):
     def generate_proposed_sample(
         self, current_sample: torch.Tensor, mcmc_noise: torch.Tensor
     ) -> torch.Tensor:
+        current_covariance = self.covariance(current_sample)
+        try:
+            L: torch.Tensor = torch.linalg.cholesky(current_covariance)
+        except Exception:
+            print("current_covariance:", current_covariance)
+            raise
         return current_sample + torch.einsum(
             "ij,ijk->ik",
             mcmc_noise,
-            torch.linalg.cholesky(self.covariance(current_sample)),
+            L,
         )
