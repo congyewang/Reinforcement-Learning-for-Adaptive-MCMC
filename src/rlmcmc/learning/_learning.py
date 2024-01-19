@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 import torch
 import torch.nn.functional as F
 import numpy as np
+import seaborn as sns
+from matplotlib import pyplot as plt
 
 import gymnasium as gym
 from stable_baselines3.common.buffers import ReplayBuffer
@@ -11,6 +13,130 @@ import time
 from tqdm.auto import trange
 from typing import Union, List
 from numpy.typing import NDArray
+
+
+class PredictedPlot:
+    def __init__(self, pointer):
+        self.pointer = pointer
+
+    def plot(
+        self,
+        scatter: bool = True,
+        trace: bool = True,
+        cov_trace: bool = True,
+        hist: bool = True,
+        kde: bool = True,
+        immediate_reward: bool = True,
+        cumulative_reward: bool = True,
+        cov: bool = True,
+        target: bool = False,
+        *args,
+        **kwargs,
+    ) -> None:
+        assert (
+            self.pointer.predicted_env.num_envs == 1
+        ), "only single environment is supported"
+
+        unwrapped_env = self.pointer.predicted_env.unwrapped.envs[0].env.env.env
+        samples = np.array(unwrapped_env.store_observation)[
+            :, 0 : unwrapped_env.sample_dim
+        ]
+        covariances = np.array(unwrapped_env.store_action)[
+            :, 0 : unwrapped_env.sample_dim**2
+        ]
+        rewards = np.array(unwrapped_env.store_reward)
+        acceptance_rate = np.sum(unwrapped_env.store_accetped_status) / len(
+            unwrapped_env.store_accetped_status
+        )
+
+        unnecessary_samples = samples.shape[0] - covariances[0]
+
+        if scatter:
+            if samples.shape[1] == 2:
+                unnecessary_samples = samples.shape[0] - covariances.shape[0]
+                plt.scatter(
+                    samples[unnecessary_samples:, 0],
+                    samples[unnecessary_samples:, 1],
+                    c=(covariances[:, 0] + covariances[:, 3]),
+                    cmap="viridis",
+                )
+                plt.colorbar(label="Trace of the Covariance")
+                plt.title("Scatter Plot")
+                plt.show()
+
+        if trace:
+            for i in range(samples.shape[1]):
+                plt.plot(samples[:, i], label=f"dim {i}", alpha=0.5)
+            plt.legend()
+            plt.title(f"Trace Plot - Acc: {acceptance_rate:.4f}")
+            plt.show()
+
+            if samples.shape[1] == 2:
+                plt.plot(
+                    samples[unnecessary_samples:, 0],
+                    samples[unnecessary_samples:, 1],
+                    "o-",
+                    color="grey",
+                    alpha=0.05,
+                )
+                plt.title("2D Trace Plot")
+                plt.show()
+
+        if cov_trace:
+            if samples.shape[1] == 2:
+                plt.plot(covariances[:, 0] + covariances[:, 3])
+                plt.title("Trace of the Covariance")
+                plt.show()
+
+        if hist:
+            for i in range(samples.shape[1]):
+                plt.hist(samples[:, i], bins=30, label=f"dim {i}, alpha=0.5")
+            plt.legend()
+            plt.title("Histogram of the Samples")
+            plt.show()
+
+        if kde:
+            for i in range(samples.shape[1]):
+                sns.kdeplot(samples[:, i], label=f"dim {i}, alpha=0.5")
+            plt.legend()
+            plt.title("KDE of the Samples")
+            plt.show()
+
+        if immediate_reward:
+            plt.plot(rewards)
+            plt.title("Immediate Reward")
+            plt.show()
+
+        if cumulative_reward:
+            plt.plot(np.cumsum(rewards))
+            plt.title("Cumulative Reward")
+            plt.show()
+
+        if cov:
+            for i in range(covariances.shape[1]):
+                plt.plot(covariances[:, i], label=f"cov {i}", alpha=0.5)
+            plt.legend()
+            plt.title("Trace Plot of the Covariance in Each Dimension")
+            plt.show()
+
+        if target:
+            _num = 1000
+            _x = np.linspace(-5, 5, _num)
+            _y = np.linspace(5, 20, _num)
+            _X, _Y = np.meshgrid(_x, _y)
+
+            _Z = np.zeros((_num, _num))
+
+            for i in range(len(_x)):
+                for j in range(len(_y)):
+                    _Z[i, j] = np.exp(
+                        unwrapped_env.log_target_pdf(np.array([_x[i], _y[j]]))
+                    )
+
+            plt.contourf(_X, _Y, _Z.T, 50, cmap="viridis")
+            plt.colorbar()
+            plt.title("Target Distribution")
+            plt.show()
 
 
 class LearningBase(ABC):
@@ -28,6 +154,123 @@ class LearningBase(ABC):
     @abstractmethod
     def save(self, folder_path: str) -> None:
         raise NotImplementedError("save method is not implemented")
+
+    def plot(
+        self,
+        scatter: bool = True,
+        trace: bool = True,
+        cov_trace: bool = True,
+        hist: bool = True,
+        kde: bool = True,
+        immediate_reward: bool = True,
+        cumulative_reward: bool = True,
+        cov: bool = True,
+        target: bool = False,
+        *args,
+        **kwargs,
+    ) -> None:
+        assert self.env.num_envs == 1, "only single environment is supported"
+
+        unwrapped_env = self.env.unwrapped.envs[0].env.env.env
+        samples = np.array(unwrapped_env.store_observation)[
+            :, 0 : unwrapped_env.sample_dim
+        ]
+        covariances = np.array(unwrapped_env.store_action)[
+            :, 0 : unwrapped_env.sample_dim**2
+        ]
+        rewards = np.array(unwrapped_env.store_reward)
+        acceptance_rate = np.sum(unwrapped_env.store_accetped_status) / len(
+            unwrapped_env.store_accetped_status
+        )
+
+        unnecessary_samples = samples.shape[0] - covariances[0]
+
+        if scatter:
+            if samples.shape[1] == 2:
+                unnecessary_samples = samples.shape[0] - covariances.shape[0]
+                plt.scatter(
+                    samples[unnecessary_samples:, 0],
+                    samples[unnecessary_samples:, 1],
+                    c=(covariances[:, 0] + covariances[:, 3]),
+                    cmap="viridis",
+                )
+                plt.colorbar(label="Trace of the Covariance")
+                plt.title("Scatter Plot")
+                plt.show()
+
+        if trace:
+            for i in range(samples.shape[1]):
+                plt.plot(samples[:, i], label=f"dim {i}", alpha=0.5)
+            plt.legend()
+            plt.title(f"Trace Plot - Acc: {acceptance_rate:.4f}")
+            plt.show()
+
+            if samples.shape[1] == 2:
+                plt.plot(
+                    samples[unnecessary_samples:, 0],
+                    samples[unnecessary_samples:, 1],
+                    "o-",
+                    color="grey",
+                    alpha=0.05,
+                )
+                plt.title("2D Trace Plot")
+                plt.show()
+
+        if cov_trace:
+            if samples.shape[1] == 2:
+                plt.plot(covariances[:, 0] + covariances[:, 3])
+                plt.title("Trace of the Covariance")
+                plt.show()
+
+        if hist:
+            for i in range(samples.shape[1]):
+                plt.hist(samples[:, i], bins=30, label=f"dim {i}, alpha=0.5")
+            plt.legend()
+            plt.title("Histogram of the Samples")
+            plt.show()
+
+        if kde:
+            for i in range(samples.shape[1]):
+                sns.kdeplot(samples[:, i], label=f"dim {i}, alpha=0.5")
+            plt.legend()
+            plt.title("KDE of the Samples")
+            plt.show()
+
+        if immediate_reward:
+            plt.plot(rewards)
+            plt.title("Immediate Reward")
+            plt.show()
+
+        if cumulative_reward:
+            plt.plot(np.cumsum(rewards))
+            plt.title("Cumulative Reward")
+            plt.show()
+
+        if cov:
+            for i in range(covariances.shape[1]):
+                plt.plot(covariances[:, i], label=f"cov {i}", alpha=0.5)
+            plt.legend()
+            plt.title("Trace Plot of the Covariance in Each Dimension")
+            plt.show()
+
+        if target:
+            _num = 1000
+            _x = np.linspace(-5, 5, _num)
+            _y = np.linspace(5, 20, _num)
+            _X, _Y = np.meshgrid(_x, _y)
+
+            _Z = np.zeros((_num, _num))
+
+            for i in range(len(_x)):
+                for j in range(len(_y)):
+                    _Z[i, j] = np.exp(
+                        unwrapped_env.log_target_pdf(np.array([_x[i], _y[j]]))
+                    )
+
+            plt.contourf(_X, _Y, _Z.T, 50, cmap="viridis")
+            plt.colorbar()
+            plt.title("Target Distribution")
+            plt.show()
 
 
 class LearningDDPG(LearningBase):
@@ -51,12 +294,13 @@ class LearningDDPG(LearningBase):
         device: str = "cpu",
     ) -> None:
         super().__init__()
+        assert isinstance(
+            env.single_action_space, gym.spaces.Box
+        ), "only continuous action space is supported"
         self.env = env
+
         self.obs, self.infos = env.reset(seed=seed)
         self.sample_dim: int = np.prod(env.single_observation_space.shape) >> 1
-        assert isinstance(
-            self.env.single_action_space, gym.spaces.Box
-        ), "only continuous action space is supported"
 
         self.actor = actor
         self.target_actor = target_actor
@@ -154,14 +398,22 @@ class LearningDDPG(LearningBase):
                             self.tau * param.data + (1 - self.tau) * target_param.data
                         )
 
-    def predict(self, predicted_timesteps: int = 10_000) -> None:
+    def predict(
+        self, predicted_env: gym.spaces.Box, predicted_timesteps: int = 10_000
+    ) -> None:
+        assert isinstance(
+            predicted_env.single_action_space, gym.spaces.Box
+        ), "only continuous action space is supported"
+
+        self.predicted_env = predicted_env
+
+        # Reset the environment
+        predicted_obs, _ = predicted_env.reset(seed=self.seed)
+
         # Store predicted obs, action, and reward
         predicted_observation: List[NDArray[np.float64]] = []
         predicted_action: List[NDArray[np.float64]] = []
         predicted_reward: List[NDArray[np.float64]] = []
-
-        # Reset the environment
-        predicted_obs, _ = self.env.reset(seed=self.seed)
 
         for _ in trange(predicted_timesteps):
             with torch.no_grad():
@@ -169,17 +421,21 @@ class LearningDDPG(LearningBase):
                     torch.from_numpy(predicted_obs).to(self.device)
                 )
 
-            predicted_obs, predicted_rewards, _, _, _ = self.env.step(predicted_actions)
+            predicted_obs, predicted_rewards, _, _, _ = predicted_env.step(
+                predicted_actions
+            )
 
             predicted_observation.append(predicted_obs)
             predicted_action.append(predicted_actions.view(-1).detach().cpu().numpy())
             predicted_reward.append(predicted_rewards)
 
         self.predicted_observation = np.array(predicted_observation).reshape(
-            -1, np.prod(self.env.single_observation_space.shape)
+            -1, np.prod(predicted_env.single_observation_space.shape)
         )
         self.predicted_action = np.array(predicted_action)
         self.predicted_reward = np.array(predicted_reward).flatten()
+
+        return PredictedPlot(self)
 
     def save(self, folder_path: str) -> None:
         model_path = f"{folder_path}/ddpg.{time.time()}.pth"

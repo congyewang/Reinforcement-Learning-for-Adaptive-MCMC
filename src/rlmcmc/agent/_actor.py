@@ -14,7 +14,7 @@ class Actor(nn.Module):
 
         self.fc1 = nn.Linear(self.sample_dim, 32)
         self.fc2 = nn.Linear(32, 16)
-        self.fc3 = nn.Linear(16, 8)
+        self.fc3 = nn.Linear(16,8)
         self.fc_mu = nn.Linear(8, self.sample_dim + 1)
 
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
@@ -34,9 +34,9 @@ class Actor(nn.Module):
         return torch.hstack([current_covariance_flatten, proposed_covariance_flatten])
 
     def low_rank_vector_and_magnification(self, x: torch.Tensor) -> torch.Tensor:
-        x = F.softplus(self.fc1(x))
-        x = F.softplus(self.fc2(x))
-        x = F.softplus(self.fc3(x))
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
         x = self.fc_mu(x)
         return x
 

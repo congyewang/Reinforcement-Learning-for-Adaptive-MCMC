@@ -91,15 +91,21 @@ class RLMHEnvBase(gym.Env, ABC):
         )
 
         # Extract Flat Current Covariance and Flat Proposed Covariance
-        current_vector, proposed_vector = np.split(action, [self.sample_dim**2], axis=0)
+        current_vector, proposed_vector = np.split(
+            action, [self.sample_dim**2], axis=0
+        )
 
         # Reshape to Covariance Matrix
         current_covariance = current_vector.reshape(self.sample_dim, self.sample_dim)
         proposed_covariance = proposed_vector.reshape(self.sample_dim, self.sample_dim)
 
         # Avoid Singular Covariance
-        nearest_proposed_covariance: NDArray[np.float64] = cov_nearest(proposed_covariance)
-        nearest_current_covariance: NDArray[np.float64] = cov_nearest(current_covariance)
+        nearest_proposed_covariance: NDArray[np.float64] = cov_nearest(
+            proposed_covariance
+        )
+        nearest_current_covariance: NDArray[np.float64] = cov_nearest(
+            current_covariance
+        )
 
         # Generate Proposed Sample
         proposed_sample = current_sample + np.matmul(
@@ -201,7 +207,13 @@ class RLMHEnvBase(gym.Env, ABC):
             )
         )
 
-        # Store
+        # Initialize Store
+        self.store_observation: List[NDArray[np.float64]] = []
+        self.store_action: List[NDArray[np.float64]] = []
+        self.store_log_accetance_rate: List[np.float64] = []
+        self.store_accetped_status: List[bool] = []
+        self.store_reward: List[np.float64] = []
+
         self.store_observation.append(self.observation)
         self.store_log_accetance_rate.append(np.float64(0.0))
         self.store_accetped_status.append(True)
@@ -274,15 +286,21 @@ class RLMHEnvV31(RLMHEnvBase):
         )
 
         # Extract Flat Current Covariance and Flat Proposed Covariance
-        current_vector, proposed_vector = np.split(action, [self.sample_dim**2], axis=0)
+        current_vector, proposed_vector = np.split(
+            action, [self.sample_dim**2], axis=0
+        )
 
         # Reshape to Covariance Matrix
         current_covariance = current_vector.reshape(self.sample_dim, self.sample_dim)
         proposed_covariance = proposed_vector.reshape(self.sample_dim, self.sample_dim)
 
         # Avoid Singular Covariance
-        nearest_proposed_covariance: NDArray[np.float64] = Toolbox.nearestPD(proposed_covariance)
-        nearest_current_covariance: NDArray[np.float64] = Toolbox.nearestPD(current_covariance)
+        nearest_proposed_covariance: NDArray[np.float64] = Toolbox.nearestPD(
+            proposed_covariance
+        )
+        nearest_current_covariance: NDArray[np.float64] = Toolbox.nearestPD(
+            current_covariance
+        )
 
         # Generate Proposed Sample
         proposed_sample = current_sample + np.matmul(
@@ -384,6 +402,58 @@ class RLMHEnvV31(RLMHEnvBase):
         }
 
         return self.observation, reward, terminated, truncated, info
+
+    def reset(self, seed: Union[int, None] = None, options: Any = None):
+        # Gym Recommandation
+        super().reset(seed=seed)
+
+        # Set Random Seed
+        if seed is not None:
+            self._np_random, seed = seeding.np_random(seed)
+
+        # Initial Steps
+        self.steps = 0
+
+        # Initialize Observation
+        self.observation = np.hstack(
+            (
+                np.zeros(self.sample_dim),
+                self.np_random.normal(size=self.sample_dim),
+            )
+        )
+
+        # Initialize Store
+        self.store_observation: List[NDArray[np.float64]] = []
+        self.store_action: List[NDArray[np.float64]] = []
+        self.store_log_accetance_rate: List[np.float64] = []
+        self.store_accetped_status: List[bool] = []
+        self.store_reward: List[np.float64] = []
+
+        self._store_proposed_sample: List[NDArray[np.float64]] = []
+        self._store_current_sample: List[NDArray[np.float64]] = []
+
+        self._store_log_target_proposed: List[np.float64] = []
+        self._store_log_target_current: List[np.float64] = []
+        self._store_log_proposal_proposed: List[np.float64] = []
+        self._store_log_proposal_current: List[np.float64] = []
+
+        self._store_nearest_proposed_covariance: List[NDArray[np.float64]] = []
+        self._store_nearest_current_covariance: List[NDArray[np.float64]] = []
+
+        self.store_observation.append(self.observation)
+        self.store_log_accetance_rate.append(np.float64(0.0))
+        self.store_accetped_status.append(True)
+        self.store_reward.append(np.float64(0.0))
+
+        # Information Dictionary
+        info = {
+            "observation": self.observation,
+            "log_accetance_rate": self.store_log_accetance_rate[0],
+            "accepted_status": self.store_accetped_status[0],
+            "reward": self.store_reward[0],
+        }
+
+        return self.observation, info
 
 
 class RLMHEnvV31A(RLMHEnvV31):
