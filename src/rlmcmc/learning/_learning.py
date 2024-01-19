@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 import torch
 import torch.nn.functional as F
 import numpy as np
+import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
 
@@ -49,11 +50,10 @@ class PredictedPlot:
             unwrapped_env.store_accetped_status
         )
 
-        unnecessary_samples = samples.shape[0] - covariances[0]
+        unnecessary_samples = samples.shape[0] - covariances.shape[0]
 
         if scatter:
             if samples.shape[1] == 2:
-                unnecessary_samples = samples.shape[0] - covariances.shape[0]
                 plt.scatter(
                     samples[unnecessary_samples:, 0],
                     samples[unnecessary_samples:, 1],
@@ -148,7 +148,7 @@ class LearningBase(ABC):
         raise NotImplementedError("train method is not implemented")
 
     @abstractmethod
-    def predict(self, predicted_timesteps: int) -> None:
+    def predict(self, predicted_env: gym.spaces.Box, predicted_timesteps: int) -> None:
         raise NotImplementedError("predict method is not implemented")
 
     @abstractmethod
@@ -183,11 +183,10 @@ class LearningBase(ABC):
             unwrapped_env.store_accetped_status
         )
 
-        unnecessary_samples = samples.shape[0] - covariances[0]
+        unnecessary_samples = samples.shape[0] - covariances.shape[0]
 
         if scatter:
             if samples.shape[1] == 2:
-                unnecessary_samples = samples.shape[0] - covariances.shape[0]
                 plt.scatter(
                     samples[unnecessary_samples:, 0],
                     samples[unnecessary_samples:, 1],
@@ -440,6 +439,49 @@ class LearningDDPG(LearningBase):
     def save(self, folder_path: str) -> None:
         model_path = f"{folder_path}/ddpg.{time.time()}.pth"
         torch.save((self.actor.state_dict(), self.critic.state_dict()), model_path)
+
+    def dataframe(self) -> pd.DataFrame:
+        assert self.env.num_envs == 1, "only single environment is supported"
+        unwrapped_env = self.env.unwrapped.envs[0].env.env.env
+        assert unwrapped_env.sample_dim == 2, "only 2D sample space is supported"
+
+        samples = np.array(unwrapped_env.store_observation)[
+            :, 0 : unwrapped_env.sample_dim
+        ]
+        covariances = np.array(unwrapped_env.store_action)[
+            :, 0 : unwrapped_env.sample_dim**2
+        ]
+        rewards = np.array(unwrapped_env.store_reward)
+        log_accetance_rate = np.array(unwrapped_env.store_log_accetance_rate).reshape(
+            -1, 1
+        )
+        accetped_status = np.array(unwrapped_env.store_accetped_status).reshape(-1, 1)
+
+        unnecessary_samples = samples.shape[0] - covariances.shape[0]
+        df = pd.DataFrame(
+            np.hstack(
+                [
+                    samples[unnecessary_samples:],
+                    covariances,
+                    rewards.reshape(-1, 1)[unnecessary_samples:],
+                    log_accetance_rate[unnecessary_samples:],
+                    accetped_status[unnecessary_samples:],
+                ]
+            ),
+            columns=[
+                "x",
+                "y",
+                "cov1",
+                "cov2",
+                "cov3",
+                "cov4",
+                "rewards",
+                "log_alpha",
+                "accepted_status",
+            ],
+        )
+
+        return df
 
 
 class LearningTD3(LearningBase):
