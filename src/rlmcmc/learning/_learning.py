@@ -90,7 +90,7 @@ class PredictedPlot:
 
         if hist:
             for i in range(samples.shape[1]):
-                plt.hist(samples[:, i], bins=30, label=f"dim {i}, alpha=0.5")
+                plt.hist(samples[:, i], bins=30, label=f"dim {i}", alpha=0.5)
             plt.legend()
             plt.title("Histogram of the Samples")
             plt.show()
@@ -223,7 +223,7 @@ class LearningBase(ABC):
 
         if hist:
             for i in range(samples.shape[1]):
-                plt.hist(samples[:, i], bins=30, label=f"dim {i}, alpha=0.5")
+                plt.hist(samples[:, i], bins=30, label=f"dim {i}", alpha=0.5)
             plt.legend()
             plt.title("Histogram of the Samples")
             plt.show()
