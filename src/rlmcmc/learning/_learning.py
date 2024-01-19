@@ -12,7 +12,7 @@ from stable_baselines3.common.buffers import ReplayBuffer
 
 import time
 from tqdm.auto import trange
-from typing import Union, List
+from typing import Any, Union, List
 from numpy.typing import NDArray
 
 
@@ -97,7 +97,7 @@ class PredictedPlot:
 
         if kde:
             for i in range(samples.shape[1]):
-                sns.kdeplot(samples[:, i], label=f"dim {i}, alpha=0.5")
+                sns.kdeplot(samples[:, i], label=f"dim {i}", alpha=0.5)
             plt.legend()
             plt.title("KDE of the Samples")
             plt.show()
@@ -148,7 +148,7 @@ class LearningBase(ABC):
         raise NotImplementedError("train method is not implemented")
 
     @abstractmethod
-    def predict(self, predicted_env: gym.spaces.Box, predicted_timesteps: int) -> None:
+    def predict(self, predicted_env: gym.spaces.Box, predicted_timesteps: int) -> Union[Any, None]:
         raise NotImplementedError("predict method is not implemented")
 
     @abstractmethod
@@ -230,7 +230,7 @@ class LearningBase(ABC):
 
         if kde:
             for i in range(samples.shape[1]):
-                sns.kdeplot(samples[:, i], label=f"dim {i}, alpha=0.5")
+                sns.kdeplot(samples[:, i], label=f"dim {i}", alpha=0.5)
             plt.legend()
             plt.title("KDE of the Samples")
             plt.show()
@@ -399,7 +399,7 @@ class LearningDDPG(LearningBase):
 
     def predict(
         self, predicted_env: gym.spaces.Box, predicted_timesteps: int = 10_000
-    ) -> None:
+    ) -> PredictedPlot:
         assert isinstance(
             predicted_env.single_action_space, gym.spaces.Box
         ), "only continuous action space is supported"
