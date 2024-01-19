@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from scipy.stats._multivariate import _PSD
 from scipy.stats import multivariate_normal as mvn
 
-from typing import Callable
+import json
+import bridgestan as bs
+from posteriordb import PosteriorDatabase
+
+from typing import Callable, Dict, Union
 from numpy.typing import NDArray
 
 
@@ -153,3 +157,25 @@ class Toolbox:
         res = res_cholesky and res_det and res_PSD
 
         return res
+
+    @staticmethod
+    def make_log_target_pdf(
+        posterior_name: str,
+        posteriordb_path: str,
+        data: Union[Dict[str, Union[float, int]], None] = None,
+    ):
+        # Load DataBase Locally
+        pdb = PosteriorDatabase(posteriordb_path)
+
+        # Load Dataset
+        posterior = pdb.posterior(posterior_name)
+        stan_code = posterior.model.stan_code_file_path()
+        if data is None:
+            stan_data = json.dumps(posterior.data.values())
+        else:
+            stan_data = json.dumps(data)
+
+        # Return log_target_pdf
+        model = bs.StanModel.from_stan_file(stan_code, stan_data)
+
+        return model.log_density
