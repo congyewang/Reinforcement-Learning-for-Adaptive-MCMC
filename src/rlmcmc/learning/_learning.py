@@ -188,10 +188,11 @@ class LearningBase(ABC, Generic[LearningBase]):
         samples = np.array(unwrapped_env.store_observation)[
             :, 0 : unwrapped_env.sample_dim
         ]
+        proposed_samples = np.array(unwrapped_env._store_proposed_sample)
         covariances = np.array(unwrapped_env.store_action)[
             :, 0 : unwrapped_env.sample_dim**2
         ]
-        rewards = np.array(unwrapped_env.store_reward)
+        rewards = np.array(unwrapped_env.store_reward).reshape(-1, 1)
         log_accetance_rate = np.array(unwrapped_env.store_log_accetance_rate).reshape(
             -1, 1
         )
@@ -202,15 +203,18 @@ class LearningBase(ABC, Generic[LearningBase]):
             np.hstack(
                 [
                     samples[unnecessary_samples:],
+                    proposed_samples,
                     covariances,
-                    rewards.reshape(-1, 1)[unnecessary_samples:],
-                    log_accetance_rate[unnecessary_samples:],
-                    accetped_status[unnecessary_samples:],
+                    rewards,
+                    log_accetance_rate,
+                    accetped_status,
                 ]
             ),
             columns=[
                 "x",
                 "y",
+                "proposed_x",
+                "proposed_y",
                 "cov1",
                 "cov2",
                 "cov3",

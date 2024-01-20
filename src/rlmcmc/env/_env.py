@@ -215,16 +215,13 @@ class RLMHEnvBase(gym.Env, ABC):
         self.store_reward: List[np.float64] = []
 
         self.store_observation.append(self.observation)
-        self.store_log_accetance_rate.append(np.float64(0.0))
-        self.store_accetped_status.append(True)
-        self.store_reward.append(np.float64(0.0))
 
         # Information Dictionary
         info = {
             "observation": self.observation,
-            "log_accetance_rate": self.store_log_accetance_rate[0],
-            "accepted_status": self.store_accetped_status[0],
-            "reward": self.store_reward[0],
+            "log_accetance_rate": None,
+            "accepted_status": None,
+            "reward": None,
         }
 
         return self.observation, info
@@ -441,16 +438,13 @@ class RLMHEnvV31(RLMHEnvBase):
         self._store_nearest_current_covariance: List[NDArray[np.float64]] = []
 
         self.store_observation.append(self.observation)
-        self.store_log_accetance_rate.append(np.float64(0.0))
-        self.store_accetped_status.append(True)
-        self.store_reward.append(np.float64(0.0))
 
         # Information Dictionary
         info = {
             "observation": self.observation,
-            "log_accetance_rate": self.store_log_accetance_rate[0],
-            "accepted_status": self.store_accetped_status[0],
-            "reward": self.store_reward[0],
+            "log_accetance_rate": None,
+            "accepted_status": None,
+            "reward": None,
         }
 
         return self.observation, info
