@@ -1,5 +1,7 @@
 import re
 import numpy as np
+import matplotlib
+from matplotlib.patches import Ellipse
 import gymnasium as gym
 from dataclasses import dataclass
 from scipy.stats._multivariate import _PSD
@@ -9,7 +11,7 @@ import json
 import bridgestan as bs
 from posteriordb import PosteriorDatabase
 
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, List, Union
 from numpy.typing import NDArray
 
 
@@ -179,3 +181,25 @@ class Toolbox:
         model = bs.StanModel.from_stan_file(stan_code, stan_data)
 
         return model.log_density
+
+    @staticmethod
+    def plot_action(
+        x: Union[List[Union[float, int]], NDArray[np.float64]],
+        a: NDArray[np.float64],
+        msd: Union[float, np.float64],
+        ax: matplotlib.axes.Axes,
+    ) -> None:
+        l, v = np.linalg.eig(a)
+        wh = msd * np.sqrt(l)
+        t = np.arctan2(v[1, 0], v[0, 0])
+        deg = t * (180 / np.pi)
+        ell = Ellipse(
+            (x[0], x[1]),
+            width=wh[0],
+            height=wh[1],
+            angle=deg,
+            edgecolor="r",
+            facecolor="none",
+            alpha=0.7,
+        )
+        ax.add_patch(ell)
