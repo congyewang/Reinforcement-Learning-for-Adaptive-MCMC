@@ -1,7 +1,11 @@
 import re
 import numpy as np
 import matplotlib
+
+import matplotlib.pyplot as plt
+from matplotlib import patches
 from matplotlib.patches import Ellipse
+from matplotlib.animation import FuncAnimation
 import gymnasium as gym
 from dataclasses import dataclass
 from scipy.stats._multivariate import _PSD
@@ -203,3 +207,133 @@ class Toolbox:
             alpha=0.7,
         )
         ax.add_patch(ell)
+
+
+class MCMCAnimation:
+    def __init__(self, log_target_pdf, dataframe, xlim, ylim) -> None:
+        self.log_target_pdf = log_target_pdf
+        self.dataframe = dataframe
+        self.xlim = xlim
+        self.ylim = ylim
+
+        self.fig, self.ax = plt.subplots()
+        self.setup_plot()
+
+    def create_cov_ellipse(self, covariance, position, nstd=2, **kwargs):
+        """
+        Create a covariance ellipse based on the covariance matrix and position.
+        """
+        eig_vals, eig_vecs = np.linalg.eigh(covariance)
+        angle = np.degrees(np.arctan2(*eig_vecs[:, 0][::-1]))
+        width, height = 2 * nstd * np.sqrt(eig_vals)
+        ellipse = patches.Ellipse(position, width, height, angle, **kwargs)
+
+        return ellipse
+
+    def plot_target_distribution(self, num=1_000):
+        """
+        Plot target distribution.
+        """
+        num = 1000
+        x = np.linspace(self.xlim[0], self.xlim[1], num)
+        y = np.linspace(self.ylim[0], self.ylim[1], num)
+        grid_x, grid_y = np.meshgrid(x, y)
+
+        pdf_res = np.zeros((num, num))
+
+        for i in range(len(x)):
+            for j in range(len(y)):
+                pdf_res[i, j] = np.exp(self.log_target_pdf(np.array([x[i], y[j]])))
+
+        self.ax.contour(grid_x, grid_y, pdf_res.T)
+
+    def setup_plot(self):
+        """
+        Setup the plot for the animation.
+        """
+        self.ax.set_xlim(*self.xlim)
+        self.ax.set_ylim(*self.ylim)
+        self.plot_target_distribution()
+
+        # Initialize elements in the plot for the animation
+        (self.accepted_trace,) = self.ax.plot(
+            [], [], "o-", markersize=3, color="black", alpha=0.3, label="Accepted Trace"
+        )  # Line trace for accepted samples
+        (self.current_point,) = self.ax.plot(
+            [],
+            [],
+            "o",
+            markerfacecolor="black",
+            markersize=10,
+            markeredgecolor="black",
+            label="Current Sample",
+        )  # Solid black point for the current accepted position
+        (self.proposed_point,) = self.ax.plot(
+            [],
+            [],
+            "o",
+            markerfacecolor="none",
+            markersize=10,
+            markeredgecolor="red",
+            label="Proposed Sample",
+        )  # Solid red point for the proposed position
+
+    def update(self, frame):
+        """
+        Function to update the animation for each frame
+        """
+
+        # Clearing the previous rejected ellipse
+        if frame > 0 and self.dataframe.iloc[frame - 1]["accepted_status"] == 0:
+            self.ax.patches[-1].remove()
+
+        # Getting data for the current frame
+        row = self.dataframe.iloc[frame]
+        cov_matrix = [[row["cov1"], row["cov2"]], [row["cov3"], row["cov4"]]]
+
+        # Update the trace of accepted samples
+        self.accepted_trace.set_data(
+            self.dataframe["x"][: frame + 1], self.dataframe["y"][: frame + 1]
+        )
+
+        # Update the current accepted point and the proposed point
+        self.current_point.set_data(
+            self.dataframe["x"][frame], self.dataframe["y"][frame]
+        )
+        self.proposed_point.set_data(row["proposed_x"], row["proposed_y"])
+
+        # Draw the covariance ellipse for the current position
+        ellipse = self.create_cov_ellipse(
+            cov_matrix,
+            (row["x"], row["y"]),
+            edgecolor="blue",
+            facecolor="none",
+            alpha=0.1,
+        )
+        self.ax.add_patch(ellipse)
+
+        # Set the title of the plot
+        self.ax.set_title(f"2D MCMC Trajectory Animation - Iteration: {frame + 1}")
+
+        return [self.accepted_trace, self.current_point, self.proposed_point, ellipse]
+
+    def make(self, interval=100, blit=False, repeat=False):
+        """
+        Creating the animation with the trace of accepted samples
+        """
+        self.anim = FuncAnimation(
+            self.fig,
+            self.update,
+            frames=len(self.dataframe),
+            interval=interval,
+            blit=blit,
+            repeat=repeat,
+        )
+
+        return self
+
+    def save(self, anim_file_path, writer="ffmpeg"):
+        """
+        Save the animation
+        """
+        self.anim.save(anim_file_path, writer=writer)

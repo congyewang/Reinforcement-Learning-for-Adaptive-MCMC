@@ -1,4 +1,4 @@
-from ._utils import Args, Toolbox
+from ._utils import Args, MCMCAnimation, Toolbox
 
 
-__all__ = ['Args', 'Toolbox']
+__all__ = ["Args", "MCMCAnimation", "Toolbox"]
