@@ -49,6 +49,8 @@ class LearningBase(ABC, Generic[LearningBase]):
         cumulative_reward: bool = True,
         cov: bool = True,
         target: bool = False,
+        critic_loss: bool = False,
+        actor_values: bool = False,
         *args,
         **kwargs,
     ) -> None:
@@ -161,6 +163,16 @@ class LearningBase(ABC, Generic[LearningBase]):
             plt.title("Target Distribution")
             plt.show()
 
+        if critic_loss:
+            plt.plot(np.array(self.critic_loss))
+            plt.title("Critic Loss")
+            plt.show()
+
+        if actor_values:
+            plt.plot(np.array(self.actor_values))
+            plt.title("Actor Values")
+            plt.show()
+
     def dataframe(self) -> pd.DataFrame:
         if self._last_called == self.train.__name__:
             env = self.env
@@ -260,7 +272,6 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
         self.seed = seed
         self.device = device
 
-        self.critic_values = []
         self.critic_loss = []
         self.actor_values = []
 
@@ -342,7 +353,6 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
                         )
 
                 if global_step % 100 == 0:
-                    self.critic_values.append(critic_a_values.mean().item())
                     self.critic_loss.append(critic_loss.item())
                     self.actor_values.append(actor_loss.item())
 
