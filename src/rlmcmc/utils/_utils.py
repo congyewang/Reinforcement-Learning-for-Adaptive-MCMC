@@ -212,7 +212,7 @@ class Toolbox:
 class MCMCAnimation:
     def __init__(self, log_target_pdf, dataframe, xlim, ylim) -> None:
         self.log_target_pdf = log_target_pdf
-        self.dataframe = dataframe
+        self.dataframe = dataframe.reset_index(drop=True)
         self.xlim = xlim
         self.ylim = ylim
 
