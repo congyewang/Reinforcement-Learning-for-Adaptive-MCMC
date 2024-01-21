@@ -177,3 +177,7 @@ posteriordb/
 
 # VSCode
 .vscode/
+
+# Animation
+*.gif
+*.mp4

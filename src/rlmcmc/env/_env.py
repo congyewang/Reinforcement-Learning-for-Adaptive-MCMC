@@ -1,3 +1,4 @@
+from math import log
 import gymnasium as gym
 from gymnasium import spaces
 from gymnasium.utils import seeding
@@ -11,7 +12,7 @@ from ..utils import Toolbox
 from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple, Union, Dict, Any
 
-INF = 3.4028235e38  # Corresponds to the value of FLT_MAX in C++
+INF = np.float64(3.4028235e38)  # Corresponds to the value of FLT_MAX in C++
 
 
 class RLMHEnvBase(gym.Env, ABC):
@@ -274,8 +275,8 @@ class RLMHEnvV31(RLMHEnvBase):
     ]:
         # Check Action Shape
         assert (
-            action.shape[0] == 2 * self.sample_dim**2 and action.shape[0] % 2 == 0
-        ), f"Action shape is {action.shape}, but expected shape is {(2 * self.sample_dim**2, )}"
+            action.shape[0] == self.sample_dim**2 << 1 and action.shape[0] % 2 == 0
+        ), f"Action shape is {action.shape}, but expected shape is {(self.sample_dim**2 << 1, )}"
 
         # Extract Current Sample
         current_sample, mcmc_noise = np.split(
@@ -309,36 +310,30 @@ class RLMHEnvV31(RLMHEnvBase):
         log_target_current = self.log_target_pdf(current_sample)
 
         ## Avoid -np.inf
-        if np.isneginf(log_target_proposed):
-            log_target_proposed = -INF
-        if np.isneginf(log_target_current):
-            log_target_current = -INF
+        if np.isneginf(log_target_proposed) and np.isneginf(log_target_current):
+            log_target_probability = -INF
+        else:
+            if np.isneginf(log_target_proposed):
+                log_target_proposed = -INF
+            if np.isneginf(log_target_current):
+                log_target_current = -INF
+
+            log_target_probability = log_target_proposed - log_target_current
 
         # Calculate Log Proposal Densitys
-        try:
-            log_proposal_proposed = self.log_proposal_pdf(
-                proposed_sample, current_sample, nearest_current_covariance
-            )
-        except Exception:
-            print("nearest_current_covariance:", nearest_current_covariance)
-            raise
-
-        try:
-            log_proposal_current = self.log_proposal_pdf(
+        log_proposal_proposed = self.log_proposal_pdf(
+                    proposed_sample, current_sample, nearest_current_covariance
+                )
+        log_proposal_current = self.log_proposal_pdf(
                 current_sample, proposed_sample, nearest_proposed_covariance
-            )
-        except Exception:
-            print("nearest_proposed_covariance:", nearest_proposed_covariance)
-            raise
+                )
+        log_proposal_probability = log_proposal_current - log_proposal_proposed
 
         # Calculate Log Acceptance Rate
         log_alpha = np.min(
             [
-                0.0,
-                log_target_proposed
-                - log_target_current
-                + log_proposal_current
-                - log_proposal_proposed,
+                np.float64(0.0),
+                log_target_probability + log_proposal_probability
             ]
         )
 
