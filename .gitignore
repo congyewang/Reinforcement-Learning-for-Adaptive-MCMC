@@ -122,7 +122,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
-env/
+# env/
 venv/
 ENV/
 env.bak/
@@ -168,3 +168,16 @@ cython_debug/
 
 # Records
 runs/
+
+# PosteriorDB
+posteriordb/
+
+# Stan
+*.rds
+
+# VSCode
+.vscode/
+
+# Animation
+*.gif
+*.mp4
