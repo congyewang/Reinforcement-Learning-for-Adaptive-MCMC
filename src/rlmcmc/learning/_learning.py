@@ -285,11 +285,18 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
         self.predicted_action: List[NDArray[np.float64]] = []
         self.predicted_reward: List[NDArray[np.float64]] = []
 
-    def soft_clipping(self, g, t: float = 1.0, p: int = 2):
+    def soft_clipping(self, g: torch.Tensor, t: float = 1.0, p: int = 2):
+        """
+        Soft clipping function for gradient clipping.
+        """
+
         norm = torch.norm(g, p=p)
         return t / (t + norm) * g
 
-    def train(self: LearningDDPG, gradient_clipping=False) -> LearningDDPG:
+    def train(self: LearningDDPG, gradient_clipping: bool = False) -> LearningDDPG:
+        """
+        Training Session for DDPG.
+        """
         if gradient_clipping:
             for p in self.critic.parameters():
                 p.register_hook(self.soft_clipping)
