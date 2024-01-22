@@ -170,10 +170,14 @@ cython_debug/
 runs/
 
 # PosteriorDB
-Python/posteriordb/
+posteriordb/
 
 # Stan
 *.rds
 
 # VSCode
 .vscode/
+
+# Animation
+*.gif
+*.mp4
