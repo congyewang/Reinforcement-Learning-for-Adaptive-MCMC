@@ -1,3 +1,4 @@
+import os
 import re
 import numpy as np
 import matplotlib
@@ -208,6 +209,11 @@ class Toolbox:
         )
         ax.add_patch(ell)
 
+    @staticmethod
+    def create_folder(file_path: str) -> None:
+        folder_path = os.path.dirname(file_path)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
 
 class MCMCAnimation:
     def __init__(self, log_target_pdf, dataframe, xlim, ylim) -> None:
@@ -336,4 +342,5 @@ class MCMCAnimation:
         """
         Save the animation
         """
+        Toolbox.create_folder(anim_file_path)
         self.anim.save(anim_file_path, writer=writer)
