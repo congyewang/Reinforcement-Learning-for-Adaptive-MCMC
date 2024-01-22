@@ -499,11 +499,11 @@ class RLMHEnvV33(RLMHEnvV31):
         proposed_covariance = proposed_vector.reshape(self.sample_dim, self.sample_dim)
 
         # Avoid Singular Covariance
-        nearest_proposed_covariance: NDArray[np.float64] = Toolbox.nearestPD(
-            proposed_covariance
-        )
         nearest_current_covariance: NDArray[np.float64] = Toolbox.nearestPD(
             current_covariance
+        )
+        nearest_proposed_covariance: NDArray[np.float64] = Toolbox.nearestPD(
+            proposed_covariance
         )
 
         # Generate Proposed Sample

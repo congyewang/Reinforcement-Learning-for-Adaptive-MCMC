@@ -1,12 +1,14 @@
 import os
 import re
 import numpy as np
+import pandas as pd
 import matplotlib
+matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 from matplotlib import patches
 from matplotlib.patches import Ellipse
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, MovieWriter
 import gymnasium as gym
 from dataclasses import dataclass
 from scipy.stats._multivariate import _PSD
@@ -16,8 +18,9 @@ import json
 import bridgestan as bs
 from posteriordb import PosteriorDatabase
 
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Tuple, Union
 from numpy.typing import NDArray
+from gymnasium.envs.registration import EnvSpec
 
 
 @dataclass
@@ -77,7 +80,13 @@ class Args:
 
 class Toolbox:
     @staticmethod
-    def make_env(env_id, seed, log_target_pdf, sample_dim, total_timesteps):
+    def make_env(
+        env_id: Union[str, EnvSpec],
+        seed: int,
+        log_target_pdf: Callable,
+        sample_dim: int,
+        total_timesteps: int,
+    ):
         def thunk():
             env = gym.make(
                 env_id,
@@ -93,7 +102,7 @@ class Toolbox:
         return thunk
 
     @classmethod
-    def nearestPD(cls, A):
+    def nearestPD(cls, A: NDArray[np.float64]):
         """
         Find the nearest positive-definite matrix to input
         A Python/Numpy port of John D'Errico's `nearestSPD` MATLAB code [1], which
@@ -136,7 +145,7 @@ class Toolbox:
         return A3
 
     @classmethod
-    def isPD(cls, B):
+    def isPD(cls, B: NDArray[np.float64]):
         """
         Returns true when input is positive-definite, via Cholesky, det, and _PSD from scipy.
         """
@@ -215,17 +224,37 @@ class Toolbox:
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
+
 class MCMCAnimation:
-    def __init__(self, log_target_pdf, dataframe, xlim, ylim) -> None:
+    def __init__(
+        self,
+        log_target_pdf: Callable[NDArray[np.float64], np.float64],
+        dataframe: pd.DataFrame,
+        xlim: Tuple[float, float],
+        ylim: Tuple[float, float],
+        ellipse_num: int = 10,
+        target: bool = True,
+    ) -> None:
         self.log_target_pdf = log_target_pdf
         self.dataframe = dataframe.reset_index(drop=True)
         self.xlim = xlim
         self.ylim = ylim
 
+        self.target = target
+        self.ellipse_num = ellipse_num
+
         self.fig, self.ax = plt.subplots()
+        self.ellipse_list = []  # List to track the ellipses
+
         self.setup_plot()
 
-    def create_cov_ellipse(self, covariance, position, nstd=2, **kwargs):
+    def create_cov_ellipse(
+        self,
+        covariance: NDArray[np.float64],
+        position: NDArray[np.float64],
+        nstd: float = 2.0,
+        **kwargs,
+    ):
         """
         Create a covariance ellipse based on the covariance matrix and position.
         """
@@ -233,14 +262,12 @@ class MCMCAnimation:
         angle = np.degrees(np.arctan2(*eig_vecs[:, 0][::-1]))
         width, height = 2 * nstd * np.sqrt(eig_vals)
         ellipse = patches.Ellipse(position, width, height, angle, **kwargs)
-
         return ellipse
 
-    def plot_target_distribution(self, num=1_000):
+    def plot_target_distribution(self, num: int = 1_000):
         """
         Plot target distribution.
         """
-        num = 1000
         x = np.linspace(self.xlim[0], self.xlim[1], num)
         y = np.linspace(self.ylim[0], self.ylim[1], num)
         grid_x, grid_y = np.meshgrid(x, y)
@@ -259,39 +286,27 @@ class MCMCAnimation:
         """
         self.ax.set_xlim(*self.xlim)
         self.ax.set_ylim(*self.ylim)
-        self.plot_target_distribution()
+        if self.target:
+            self.plot_target_distribution()
 
         # Initialize elements in the plot for the animation
         (self.accepted_trace,) = self.ax.plot(
             [], [], "o-", markersize=3, color="black", alpha=0.3, label="Accepted Trace"
         )  # Line trace for accepted samples
         (self.current_point,) = self.ax.plot(
-            [],
-            [],
-            "o",
-            markerfacecolor="black",
-            markersize=10,
-            markeredgecolor="black",
-            label="Current Sample",
+            [], [], "o", markerfacecolor="black", markersize=10, label="Current Point"
         )  # Solid black point for the current accepted position
         (self.proposed_point,) = self.ax.plot(
-            [],
-            [],
-            "o",
-            markerfacecolor="none",
-            markersize=10,
-            markeredgecolor="red",
-            label="Proposed Sample",
+            [], [], "o", markerfacecolor="none", markersize=10, markeredgecolor="red"
         )  # Solid red point for the proposed position
 
-    def update(self, frame):
+    def update(self, frame: int):
         """
         Function to update the animation for each frame
         """
-
-        # Clearing the previous rejected ellipse
-        if frame > 0 and self.dataframe.iloc[frame - 1]["accepted_status"] == 0:
-            self.ax.patches[-1].remove()
+        # Remove the oldest ellipse if more than ellipse_num ellipses are present
+        if len(self.ellipse_list) > self.ellipse_num:
+            self.ellipse_list.pop(0).remove()
 
         # Getting data for the current frame
         row = self.dataframe.iloc[frame]
@@ -317,13 +332,14 @@ class MCMCAnimation:
             alpha=0.1,
         )
         self.ax.add_patch(ellipse)
+        self.ellipse_list.append(ellipse)
 
         # Set the title of the plot
         self.ax.set_title(f"2D MCMC Trajectory Animation - Iteration: {frame + 1}")
 
         return [self.accepted_trace, self.current_point, self.proposed_point, ellipse]
 
-    def make(self, interval=100, blit=False, repeat=False):
+    def make(self, interval: int = 100, blit: bool = True, repeat: bool = False):
         """
         Creating the animation with the trace of accepted samples
         """
@@ -335,10 +351,11 @@ class MCMCAnimation:
             blit=blit,
             repeat=repeat,
         )
-
         return self
 
-    def save(self, anim_file_path, writer="ffmpeg"):
+    def save(
+        self, anim_file_path: str, writer: Union[MovieWriter, str, None] = "ffmpeg"
+    ):
         """
         Save the animation
         """
