@@ -189,9 +189,7 @@ class LearningBase(ABC, Generic[LearningBase]):
             :, 0 : unwrapped_env.sample_dim
         ]
         proposed_samples = np.array(unwrapped_env._store_proposed_sample)
-        covariances = np.array(unwrapped_env.store_action)[
-            :, 0 : unwrapped_env.sample_dim**2
-        ]
+        covariances = np.array(unwrapped_env.store_action)
         rewards = np.array(unwrapped_env.store_reward).reshape(-1, 1)
         log_accetance_rate = np.array(unwrapped_env.store_log_accetance_rate).reshape(
             -1, 1
@@ -219,6 +217,10 @@ class LearningBase(ABC, Generic[LearningBase]):
                 "cov2",
                 "cov3",
                 "cov4",
+                "proposed_cov1",
+                "proposed_cov2",
+                "proposed_cov3",
+                "proposed_cov4",
                 "rewards",
                 "log_alpha",
                 "accepted_status",
@@ -283,7 +285,18 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
         self.predicted_action: List[NDArray[np.float64]] = []
         self.predicted_reward: List[NDArray[np.float64]] = []
 
-    def train(self: LearningDDPG) -> LearningDDPG:
+    def soft_clipping(self, g, t: float = 1.0, p: int = 2):
+        norm = torch.norm(g, p=p)
+        return t / (t + norm) * g
+
+    def train(self: LearningDDPG, gradient_clipping=False) -> LearningDDPG:
+        if gradient_clipping:
+            for p in self.critic.parameters():
+                p.register_hook(self.soft_clipping)
+
+            for p in self.actor.parameters():
+                p.register_hook(self.soft_clipping)
+
         for global_step in trange(self.total_timesteps):
             if global_step < self.learning_starts:
                 actions = np.array(
