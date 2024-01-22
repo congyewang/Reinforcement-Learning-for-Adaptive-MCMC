@@ -196,11 +196,10 @@ class LearningBase(ABC, Generic[LearningBase]):
         )
         accetped_status = np.array(unwrapped_env.store_accetped_status).reshape(-1, 1)
 
-        unnecessary_samples = samples.shape[0] - covariances.shape[0]
         df = pd.DataFrame(
             np.hstack(
                 [
-                    samples[unnecessary_samples:],
+                    samples[:-1],
                     proposed_samples,
                     covariances,
                     rewards,
