@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import pandas as pd
+from scipy.stats import wishart
 import seaborn as sns
 from matplotlib import pyplot as plt
 
@@ -243,6 +244,7 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
         total_timesteps: int = 10_000,
         learning_starts: int = 32,
         batch_size: int = 32,
+        exploration_noise: float = 0.1,
         gamma: float = 0.99,
         policy_frequency: int = 2,
         tau: float = 0.005,
@@ -271,6 +273,7 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
         self.total_timesteps = total_timesteps
         self.learning_starts = learning_starts
         self.batch_size = batch_size
+        self.exploration_noise = exploration_noise
         self.gamma = gamma
         self.policy_frequency = policy_frequency
         self.tau = tau
@@ -434,3 +437,88 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
 
 class LearningTD3(LearningBase):
     pass
+
+
+class LearningDDPGRandom(LearningDDPG):
+    def train(self: LearningDDPG, gradient_clipping: bool = False) -> LearningDDPG:
+        """
+        Training Session for DDPG.
+        """
+        if gradient_clipping:
+            for p in self.critic.parameters():
+                p.register_hook(self.soft_clipping)
+
+            for p in self.actor.parameters():
+                p.register_hook(self.soft_clipping)
+
+        for global_step in trange(self.total_timesteps):
+            if global_step < self.learning_starts:
+                actions = np.array(
+                    [
+                        wishart.rvs(self.sample_dim, np.eye(self.sample_dim), size=2).reshape(-1, self.sample_dim << 2)
+                        for _ in range(self.env.num_envs)
+                    ]
+                ).reshape(1, -1)
+            else:
+                with torch.no_grad():
+                    actions = self.actor(torch.from_numpy(self.obs).to(self.device))
+                    actions += torch.normal(0, torch.ones_like(actions) * self.exploration_noise)
+                    actions = actions.cpu().numpy().clip(self.env.single_action_space.low, self.env.single_action_space.high)
+
+            next_obs, rewards, terminations, truncations, self.infos = self.env.step(
+                actions
+            )
+
+            real_next_obs = next_obs.copy()
+            self.replay_buffer.add(
+                self.obs, real_next_obs, actions, rewards, terminations, self.infos
+            )
+
+            self.obs = next_obs
+
+            if global_step > self.learning_starts:
+                data = self.replay_buffer.sample(self.batch_size)
+                with torch.no_grad():
+                    next_state_actions = self.target_actor(data.next_observations)
+                    critic_next_target = self.target_critic(
+                        data.next_observations, next_state_actions
+                    )
+                    next_q_value = data.rewards.flatten() + (
+                        1 - data.dones.flatten()
+                    ) * self.gamma * (critic_next_target).view(-1)
+                critic_a_values = self.critic(data.observations, data.actions).view(-1)
+                critic_loss = F.mse_loss(critic_a_values, next_q_value)
+
+                # optimize the model
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                self.critic_optimizer.step()
+
+                if global_step % self.policy_frequency == 0:
+                    actor_loss = -self.critic(
+                        data.observations, self.actor(data.observations)
+                    ).mean()
+                    self.actor_optimizer.zero_grad()
+                    actor_loss.backward()
+                    self.actor_optimizer.step()
+
+                    # update the target network
+                    for param, target_param in zip(
+                        self.actor.parameters(), self.target_actor.parameters()
+                    ):
+                        target_param.data.copy_(
+                            self.tau * param.data + (1 - self.tau) * target_param.data
+                        )
+                    for param, target_param in zip(
+                        self.critic.parameters(), self.target_critic.parameters()
+                    ):
+                        target_param.data.copy_(
+                            self.tau * param.data + (1 - self.tau) * target_param.data
+                        )
+
+                if global_step % 100 == 0:
+                    self.critic_loss.append(critic_loss.item())
+                    self.actor_values.append(actor_loss.item())
+
+        self._last_called = self.train.__name__
+        return self

@@ -33,12 +33,12 @@ class RLMHEnvBase(gym.Env, ABC):
 
         # Observation specification
         self.observation_space = spaces.Box(
-            low=-INF, high=INF, shape=(2 * sample_dim,), dtype=np.float64
+            low=-np.inf, high=np.inf, shape=(2 * sample_dim,), dtype=np.float64
         )
 
         # Action specification
         self.action_space = spaces.Box(
-            low=-INF, high=INF, shape=(2 * sample_dim**2,), dtype=np.float64
+            low=-np.inf, high=np.inf, shape=(2 * sample_dim**2,), dtype=np.float64
         )
 
         # Store
