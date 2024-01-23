@@ -290,7 +290,13 @@ class MCMCAnimation:
 
         # Initialize elements in the plot for the animation
         (self.accepted_trace,) = self.ax.plot(
-            [], [], "o-", markersize=3, color="black", alpha=0.3, label="Accepted Trace"
+            [],
+            [],
+            "o-",
+            markersize=3,
+            color="black",
+            alpha=0.01,
+            label="Accepted Trace",
         )  # Line trace for accepted samples
         (self.current_point,) = self.ax.plot(
             [], [], "o", markerfacecolor="black", markersize=10, label="Current Point"
@@ -328,7 +334,7 @@ class MCMCAnimation:
             (row["x"], row["y"]),
             edgecolor="blue",
             facecolor="none",
-            alpha=0.1,
+            alpha=1.0,
         )
         self.ax.add_patch(ellipse)
         self.ellipse_list.append(ellipse)

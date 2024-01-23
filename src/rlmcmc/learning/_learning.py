@@ -16,6 +16,8 @@ from tqdm.auto import trange
 from typing import Generic, List, TypeVar, Union
 from numpy.typing import NDArray
 
+from ..utils import Toolbox
+
 LearningBase = TypeVar("LearningBase", bound="LearningBase")
 LearningDDPG = TypeVar("LearningDDPG", bound="LearningDDPG")
 LearningTD3 = TypeVar("LearningTD3", bound="LearningTD3")
@@ -428,6 +430,7 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
         return self
 
     def save(self, folder_path: str) -> None:
+        Toolbox.create_folder(folder_path)
         model_path = f"{folder_path}/ddpg.{time.time()}.pth"
         torch.save(
             {"actor": self.actor.state_dict(), "critic": self.critic.state_dict()},
@@ -455,15 +458,26 @@ class LearningDDPGRandom(LearningDDPG):
             if global_step < self.learning_starts:
                 actions = np.array(
                     [
-                        wishart.rvs(self.sample_dim, np.eye(self.sample_dim), size=2).reshape(-1, self.sample_dim << 2)
+                        wishart.rvs(
+                            self.sample_dim, np.eye(self.sample_dim), size=2
+                        ).reshape(-1, self.sample_dim << 2)
                         for _ in range(self.env.num_envs)
                     ]
                 ).reshape(1, -1)
             else:
                 with torch.no_grad():
                     actions = self.actor(torch.from_numpy(self.obs).to(self.device))
-                    actions += torch.normal(0, torch.ones_like(actions) * self.exploration_noise)
-                    actions = actions.cpu().numpy().clip(self.env.single_action_space.low, self.env.single_action_space.high)
+                    actions += torch.normal(
+                        0, torch.ones_like(actions) * self.exploration_noise
+                    )
+                    actions = (
+                        actions.cpu()
+                        .numpy()
+                        .clip(
+                            self.env.single_action_space.low,
+                            self.env.single_action_space.high,
+                        )
+                    )
 
             next_obs, rewards, terminations, truncations, self.infos = self.env.step(
                 actions
