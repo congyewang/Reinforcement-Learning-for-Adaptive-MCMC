@@ -252,17 +252,15 @@ class MCMCAnimation:
         self,
         covariance: NDArray[np.float64],
         position: NDArray[np.float64],
-        # nstd: float = 2.0,
         msd: Union[float, np.float64] = 1.0,
         **kwargs,
     ):
         """
         Create a covariance ellipse based on the covariance matrix and position.
         """
-        eig_vals, eig_vecs = np.linalg.eig(covariance)
+        eig_vals, eig_vecs = np.linalg.eigh(covariance)
+        angle = np.degrees(np.arctan2(*eig_vecs[:, 0][::-1]))
         width, height = msd * np.sqrt(eig_vals)
-        t = np.arctan2(eig_vecs[1, 0], eig_vecs[0, 0])
-        angle = t * (180.0 / np.pi)
         ellipse = patches.Ellipse(position, width, height, angle, **kwargs)
         return ellipse
 
