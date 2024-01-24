@@ -413,7 +413,7 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
                 )
 
             predicted_obs, predicted_rewards, _, _, _ = predicted_env.step(
-                predicted_actions
+                predicted_actions.detach().cpu().numpy()
             )
 
             predicted_observation.append(predicted_obs)

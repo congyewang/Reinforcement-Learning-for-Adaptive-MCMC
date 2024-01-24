@@ -201,6 +201,7 @@ class Toolbox:
         a: NDArray[np.float64],
         msd: Union[float, np.float64],
         ax: matplotlib.axes.Axes,
+        alpha: float = 0.7,
     ) -> None:
         l, v = np.linalg.eig(a)
         wh = msd * np.sqrt(l)
@@ -213,7 +214,7 @@ class Toolbox:
             angle=deg,
             edgecolor="r",
             facecolor="none",
-            alpha=0.7,
+            alpha=alpha,
         )
         ax.add_patch(ell)
 
@@ -251,15 +252,17 @@ class MCMCAnimation:
         self,
         covariance: NDArray[np.float64],
         position: NDArray[np.float64],
-        nstd: float = 2.0,
+        # nstd: float = 2.0,
+        msd: Union[float, np.float64] = 1.0,
         **kwargs,
     ):
         """
         Create a covariance ellipse based on the covariance matrix and position.
         """
-        eig_vals, eig_vecs = np.linalg.eigh(covariance)
-        angle = np.degrees(np.arctan2(*eig_vecs[:, 0][::-1]))
-        width, height = 2 * nstd * np.sqrt(eig_vals)
+        eig_vals, eig_vecs = np.linalg.eig(covariance)
+        width, height = msd * np.sqrt(eig_vals)
+        t = np.arctan2(eig_vecs[1, 0], eig_vecs[0, 0])
+        angle = t * (180.0 / np.pi)
         ellipse = patches.Ellipse(position, width, height, angle, **kwargs)
         return ellipse
 

@@ -7,14 +7,18 @@ import gymnasium as gym
 
 
 class Actor(nn.Module):
-    def __init__(self, env: gym.spaces.Box) -> None:
+    def __init__(
+        self, env: gym.spaces.Box, device: torch.device = torch.device("cpu")
+    ) -> None:
         super().__init__()
+        self.device = device
 
         self.sample_dim = int(np.array(env.single_observation_space.shape).prod()) >> 1
 
+
         self.fc1 = nn.Linear(self.sample_dim, 32)
         self.fc2 = nn.Linear(32, 16)
-        self.fc3 = nn.Linear(16,8)
+        self.fc3 = nn.Linear(16, 8)
         self.fc_mu = nn.Linear(8, self.sample_dim + 1)
 
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
@@ -34,9 +38,9 @@ class Actor(nn.Module):
         return torch.hstack([current_covariance_flatten, proposed_covariance_flatten])
 
     def low_rank_vector_and_magnification(self, x: torch.Tensor) -> torch.Tensor:
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        x = F.elu(self.fc3(x))
         x = self.fc_mu(x)
         return x
 
@@ -50,7 +54,8 @@ class Actor(nn.Module):
 
         return (
             low_rank_vector[:, :, None] * low_rank_vector[:, None, :]
-            + mag[:, :, None] ** 2 * torch.eye(self.sample_dim)[None, :, :]
+            + mag[:, :, None] ** 2
+            * torch.eye(self.sample_dim).to(self.device)[None, :, :]
         )
 
     def generate_proposed_sample(
