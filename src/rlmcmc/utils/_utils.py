@@ -24,7 +24,7 @@ from gymnasium.envs.registration import EnvSpec
 
 @dataclass
 class Args:
-    exp_name: str = "test"
+    exp_name: str = "RLMCMC"
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
@@ -34,7 +34,7 @@ class Args:
     """if toggled, cuda will be enabled by default"""
     track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_project_name: str = "cleanRL"
+    wandb_project_name: str = "RLMCMC"
     """the wandb's project name"""
     wandb_entity: str = ""
     """the entity (team) of wandb's project"""
@@ -72,11 +72,16 @@ class Args:
     """noise clip parameter of the Target Policy Smoothing Regularization"""
 
     sample_dim: int = 2
+    """the dimension of the sample"""
     log_target_pdf: Callable[
         [NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], np.float64
     ] = lambda x: mvn.logpdf(x, mean=np.zeros(2), cov=np.eye(2))
+    """the log target pdf"""
 
     def get_all_attributes(self):
+        """
+        get all attributes of this class
+        """
         return {field.name: getattr(self, field.name) for field in fields(self)}
 
 
