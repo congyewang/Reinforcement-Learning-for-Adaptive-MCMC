@@ -54,7 +54,9 @@ class LearningInterface(ABC, Generic[LearningInterface]):
         cov: bool = True,
         target: bool = False,
         critic_loss: bool = False,
-        actor_values: bool = False,
+        actor_loss: bool = False,
+        save_path: Union[str, None] = None,
+        dpi: int = 300,
         *args,
         **kwargs,
     ) -> None:
@@ -91,14 +93,26 @@ class LearningInterface(ABC, Generic[LearningInterface]):
                 )
                 plt.colorbar(label="Trace of the Covariance")
                 plt.title("Scatter Plot")
-                plt.show()
+                if save_path is not None:
+                    file_path = f"{save_path}/scatter.png"
+                    Toolbox.create_folder(file_path)
+                    plt.savefig(file_path, dpi=dpi)
+                    plt.clf()
+                else:
+                    plt.show()
 
         if trace:
             for i in range(samples.shape[1]):
                 plt.plot(samples[:, i], label=f"dim {i}", alpha=0.5)
             plt.legend()
             plt.title(f"Trace Plot - Acc: {acceptance_rate:.4f}")
-            plt.show()
+            if save_path is not None:
+                file_path = f"{save_path}/trace.png"
+                Toolbox.create_folder(file_path)
+                plt.savefig(file_path, dpi=dpi)
+                plt.clf()
+            else:
+                plt.show()
 
             if samples.shape[1] == 2:
                 plt.plot(
@@ -109,44 +123,86 @@ class LearningInterface(ABC, Generic[LearningInterface]):
                     alpha=0.05,
                 )
                 plt.title("2D Trace Plot")
-                plt.show()
+                if save_path is not None:
+                    file_path = f"{save_path}/2d_trace.png"
+                    Toolbox.create_folder(file_path)
+                    plt.savefig(file_path, dpi=dpi)
+                    plt.clf()
+                else:
+                    plt.show()
 
         if cov_trace:
             if samples.shape[1] == 2:
                 plt.plot(covariances[:, 0] + covariances[:, 3])
                 plt.title("Trace of the Covariance")
-                plt.show()
+                if save_path is not None:
+                    file_path = f"{save_path}/cov_trace.png"
+                    Toolbox.create_folder(file_path)
+                    plt.savefig(file_path, dpi=dpi)
+                    plt.clf()
+                else:
+                    plt.show()
 
         if hist:
             for i in range(samples.shape[1]):
                 plt.hist(samples[:, i], bins=30, label=f"dim {i}", alpha=0.5)
             plt.legend()
             plt.title("Histogram of the Samples")
-            plt.show()
+            if save_path is not None:
+                file_path = f"{save_path}/hist.png"
+                Toolbox.create_folder(file_path)
+                plt.savefig(file_path, dpi=dpi)
+                plt.clf()
+            else:
+                plt.show()
 
         if kde:
             for i in range(samples.shape[1]):
                 sns.kdeplot(samples[:, i], label=f"dim {i}", alpha=0.5)
             plt.legend()
             plt.title("KDE of the Samples")
-            plt.show()
+            if save_path is not None:
+                file_path = f"{save_path}/kde.png"
+                Toolbox.create_folder(file_path)
+                plt.savefig(file_path, dpi=dpi)
+                plt.clf()
+            else:
+                plt.show()
 
         if immediate_reward:
             plt.plot(rewards)
             plt.title("Immediate Reward")
-            plt.show()
+            if save_path is not None:
+                file_path = f"{save_path}/immediate_reward.png"
+                Toolbox.create_folder(file_path)
+                plt.savefig(file_path, dpi=dpi)
+                plt.clf()
+            else:
+                plt.show()
 
         if cumulative_reward:
             plt.plot(np.cumsum(rewards))
             plt.title("Cumulative Reward")
-            plt.show()
+            if save_path is not None:
+                file_path = f"{save_path}/cumulative_reward.png"
+                Toolbox.create_folder(file_path)
+                plt.savefig(file_path, dpi=dpi)
+                plt.clf()
+            else:
+                plt.show()
 
         if cov:
             for i in range(covariances.shape[1]):
                 plt.plot(covariances[:, i], label=f"cov {i}", alpha=0.5)
             plt.legend()
             plt.title("Trace Plot of the Covariance in Each Dimension")
-            plt.show()
+            if save_path is not None:
+                file_path = f"{save_path}/cov.png"
+                Toolbox.create_folder(file_path)
+                plt.savefig(file_path, dpi=dpi)
+                plt.clf()
+            else:
+                plt.show()
 
         if target:
             _num = 1000
@@ -165,17 +221,35 @@ class LearningInterface(ABC, Generic[LearningInterface]):
             plt.contourf(_X, _Y, _Z.T, 50, cmap="viridis")
             plt.colorbar()
             plt.title("Target Distribution")
-            plt.show()
+            if save_path is not None:
+                file_path = f"{save_path}/target.png"
+                Toolbox.create_folder(file_path)
+                plt.savefig(file_path, dpi=dpi)
+                plt.clf()
+            else:
+                plt.show()
 
         if critic_loss:
             plt.plot(np.array(self.critic_loss))
             plt.title("Critic Loss")
-            plt.show()
+            if save_path is not None:
+                file_path = f"{save_path}/critic_loss.png"
+                Toolbox.create_folder(file_path)
+                plt.savefig(file_path, dpi=dpi)
+                plt.clf()
+            else:
+                plt.show()
 
-        if actor_values:
-            plt.plot(np.array(self.actor_values))
-            plt.title("Actor Values")
-            plt.show()
+        if actor_loss:
+            plt.plot(np.array(self.actor_loss))
+            plt.title("Actor Loss")
+            if save_path is not None:
+                file_path = f"{save_path}/actor_loss.png"
+                Toolbox.create_folder(file_path)
+                plt.savefig(file_path, dpi=dpi)
+                plt.clf()
+            else:
+                plt.show()
 
     def dataframe(self) -> pd.DataFrame:
         if self._last_called == self.train.__name__:
@@ -284,7 +358,7 @@ class LearningDDPG(LearningInterface, Generic[LearningDDPG]):
         self.device = device
 
         self.critic_loss = []
-        self.actor_values = []
+        self.actor_loss = []
 
         self.predicted_observation: List[NDArray[np.float64]] = []
         self.predicted_action: List[NDArray[np.float64]] = []
@@ -383,7 +457,7 @@ class LearningDDPG(LearningInterface, Generic[LearningDDPG]):
 
                 if global_step % 100 == 0:
                     self.critic_loss.append(critic_loss.item())
-                    self.actor_values.append(actor_loss.item())
+                    self.actor_loss.append(actor_loss.item())
 
         self._last_called = self.train.__name__
         return self
@@ -545,7 +619,7 @@ class LearningDDPGRandom(LearningDDPG):
 
                 if global_step % 100 == 0:
                     self.critic_loss.append(critic_loss.item())
-                    self.actor_values.append(actor_loss.item())
+                    self.actor_loss.append(actor_loss.item())
 
         self._last_called = self.train.__name__
         return self
