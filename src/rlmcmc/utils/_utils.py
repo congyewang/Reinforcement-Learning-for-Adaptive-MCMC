@@ -73,9 +73,12 @@ class Args:
 
     sample_dim: int = 2
     """the dimension of the sample"""
-    log_target_pdf: Callable[
-        [NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], np.float64
-    ] = lambda x: mvn.logpdf(x, mean=np.zeros(2), cov=np.eye(2))
+    log_target_pdf: Union[
+        Callable[
+            [NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], np.float64
+        ],
+        None,
+    ] = None
     """the log target pdf"""
 
     def get_all_attributes(self):
