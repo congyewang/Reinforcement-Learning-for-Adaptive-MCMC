@@ -12,29 +12,30 @@ import gymnasium as gym
 from stable_baselines3.common.buffers import ReplayBuffer
 
 import time
+from torch.optim.optimizer import Optimizer as Optimizer
 from tqdm.auto import trange
 from typing import Generic, List, TypeVar, Union
 from numpy.typing import NDArray
 
-from ..utils import Toolbox
+from src.rlmcmc.utils import Toolbox
 
-LearningBase = TypeVar("LearningBase", bound="LearningBase")
+LearningInterface = TypeVar("LearningInterface", bound="LearningInterface")
 LearningDDPG = TypeVar("LearningDDPG", bound="LearningDDPG")
 LearningTD3 = TypeVar("LearningTD3", bound="LearningTD3")
 
 
-class LearningBase(ABC, Generic[LearningBase]):
+class LearningInterface(ABC, Generic[LearningInterface]):
     def __init__(self) -> None:
         self._last_called = None
 
     @abstractmethod
-    def train(self: LearningBase) -> LearningBase:
+    def train(self: LearningInterface) -> LearningInterface:
         raise NotImplementedError("train method is not implemented")
 
     @abstractmethod
     def predict(
-        self: LearningBase, predicted_env: gym.spaces.Box, predicted_timesteps: int
-    ) -> LearningBase:
+        self: LearningInterface, predicted_env: gym.spaces.Box, predicted_timesteps: int
+    ) -> LearningInterface:
         raise NotImplementedError("predict method is not implemented")
 
     @abstractmethod
@@ -232,7 +233,7 @@ class LearningBase(ABC, Generic[LearningBase]):
         return df
 
 
-class LearningDDPG(LearningBase, Generic[LearningDDPG]):
+class LearningDDPG(LearningInterface, Generic[LearningDDPG]):
     def __init__(
         self,
         env: gym.spaces.Box,
@@ -251,7 +252,7 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
         policy_frequency: int = 2,
         tau: float = 0.005,
         seed: Union[int, None] = None,
-        device: str = "cpu",
+        device: torch.device = torch.device("cpu"),
     ) -> None:
         super().__init__()
         assert isinstance(
@@ -438,7 +439,7 @@ class LearningDDPG(LearningBase, Generic[LearningDDPG]):
         )
 
 
-class LearningTD3(LearningBase):
+class LearningTD3(LearningInterface, Generic[LearningTD3]):
     pass
 
 
@@ -506,14 +507,26 @@ class LearningDDPGRandom(LearningDDPG):
                 # optimize the model
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
+
+                # for name, param in self.critic.named_parameters():
+                #     if param.requires_grad:
+                #         print(name, param.grad)
+
                 self.critic_optimizer.step()
 
                 if global_step % self.policy_frequency == 0:
                     actor_loss = -self.critic(
                         data.observations, self.actor(data.observations)
                     ).mean()
+
                     self.actor_optimizer.zero_grad()
                     actor_loss.backward()
+                    # torch.nn.utils.clip_grad_norm(self.actor.parameters(), float(1e-20))
+
+                    # for name, param in self.actor.named_parameters():
+                    #     if param.requires_grad:
+                    #         print(name, param.grad)
+
                     self.actor_optimizer.step()
 
                     # update the target network

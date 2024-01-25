@@ -9,7 +9,7 @@ from matplotlib import patches
 from matplotlib.patches import Ellipse
 from matplotlib.animation import FuncAnimation, MovieWriter
 import gymnasium as gym
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from scipy.stats._multivariate import _PSD
 from scipy.stats import multivariate_normal as mvn
 
@@ -75,6 +75,9 @@ class Args:
     log_target_pdf: Callable[
         [NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]], np.float64
     ] = lambda x: mvn.logpdf(x, mean=np.zeros(2), cov=np.eye(2))
+
+    def get_all_attributes(self):
+        return {field.name: getattr(self, field.name) for field in fields(self)}
 
 
 class Toolbox:
@@ -177,7 +180,7 @@ class Toolbox:
     def make_log_target_pdf(
         posterior_name: str,
         posteriordb_path: str,
-        data: Union[Dict[str, Union[float, int]], None] = None,
+        posterior_data: Union[Dict[str, Union[float, int]], None] = None,
     ):
         # Load DataBase Locally
         pdb = PosteriorDatabase(posteriordb_path)
@@ -185,10 +188,10 @@ class Toolbox:
         # Load Dataset
         posterior = pdb.posterior(posterior_name)
         stan_code = posterior.model.stan_code_file_path()
-        if data is None:
+        if posterior_data is None:
             stan_data = json.dumps(posterior.data.values())
         else:
-            stan_data = json.dumps(data)
+            stan_data = json.dumps(posterior_data)
 
         # Return log_target_pdf
         model = bs.StanModel.from_stan_file(stan_code, stan_data)
