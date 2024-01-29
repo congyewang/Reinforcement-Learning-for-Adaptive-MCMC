@@ -19,6 +19,8 @@ from numpy.typing import NDArray
 
 from src.rlmcmc.utils import Toolbox
 
+import wandb
+
 LearningInterface = TypeVar("LearningInterface", bound="LearningInterface")
 LearningDDPG = TypeVar("LearningDDPG", bound="LearningDDPG")
 LearningTD3 = TypeVar("LearningTD3", bound="LearningTD3")
@@ -93,116 +95,122 @@ class LearningInterface(ABC, Generic[LearningInterface]):
                 )
                 plt.colorbar(label="Trace of the Covariance")
                 plt.title("Scatter Plot")
-                if save_path is not None:
-                    file_path = f"{save_path}/scatter.png"
-                    Toolbox.create_folder(file_path)
-                    plt.savefig(file_path, dpi=dpi)
-                    plt.clf()
-                else:
-                    plt.show()
+                wandb.log({f"Scatter Plot {self._last_called}": wandb.Image(plt)})
+                plt.clf()
 
         if trace:
             for i in range(samples.shape[1]):
-                plt.plot(samples[:, i], label=f"dim {i}", alpha=0.5)
-            plt.legend()
-            plt.title(f"Trace Plot - Acc: {acceptance_rate:.4f}")
-            if save_path is not None:
-                file_path = f"{save_path}/trace.png"
-                Toolbox.create_folder(file_path)
-                plt.savefig(file_path, dpi=dpi)
-                plt.clf()
-            else:
-                plt.show()
-
+                data_trace = [[j, x] for (j, x) in enumerate(samples[:, i])]
+                table_trace = wandb.Table(data=data_trace, columns=["step", "x"])
+                wandb.log(
+                    {
+                        f"trace_plot_dim{i} {self._last_called}": wandb.plot.line(
+                            table_trace,
+                            "step",
+                            "x",
+                            title=f"Trace Plot at Dim {i} ({self._last_called})",
+                        )
+                    }
+                )
             if samples.shape[1] == 2:
                 plt.plot(
                     samples[unnecessary_samples:, 0],
                     samples[unnecessary_samples:, 1],
                     "o-",
-                    color="grey",
-                    alpha=0.05,
                 )
-                plt.title("2D Trace Plot")
-                if save_path is not None:
-                    file_path = f"{save_path}/2d_trace.png"
-                    Toolbox.create_folder(file_path)
-                    plt.savefig(file_path, dpi=dpi)
-                    plt.clf()
-                else:
-                    plt.show()
+                plt.xlabel("x")
+                plt.ylabel("y")
+                plt.title(f"2D Trace Plot ({self._last_called})")
+                wandb.log({f"2D Trace Plot {self._last_called}": plt})
+                plt.clf()
 
         if cov_trace:
-            if samples.shape[1] == 2:
-                plt.plot(covariances[:, 0] + covariances[:, 3])
-                plt.title("Trace of the Covariance")
-                if save_path is not None:
-                    file_path = f"{save_path}/cov_trace.png"
-                    Toolbox.create_folder(file_path)
-                    plt.savefig(file_path, dpi=dpi)
-                    plt.clf()
-                else:
-                    plt.show()
+            data_cov_trace = np.sum(
+                np.diagonal(
+                    covariances.reshape(-1, self.sample_dim, self.sample_dim),
+                    axis1=1,
+                    axis2=2,
+                ),
+                axis=1,
+            )
+            data_idx_cov_trace = [[j, x] for (j, x) in enumerate(data_cov_trace)]
+            table_cov_trace = wandb.Table(
+                data=data_idx_cov_trace, columns=["step", "trace"]
+            )
+            wandb.log(
+                {
+                    f"cov_trace {self._last_called}": wandb.plot.line(
+                        table_cov_trace,
+                        "step",
+                        "trace",
+                        title=f"Trace of Covariance Plot ({self._last_called})",
+                    )
+                }
+            )
 
         if hist:
             for i in range(samples.shape[1]):
-                plt.hist(samples[:, i], bins=30, label=f"dim {i}", alpha=0.5)
-            plt.legend()
-            plt.title("Histogram of the Samples")
-            if save_path is not None:
-                file_path = f"{save_path}/hist.png"
-                Toolbox.create_folder(file_path)
-                plt.savefig(file_path, dpi=dpi)
-                plt.clf()
-            else:
-                plt.show()
+                data_hist = samples[:, i].reshape(-1, 1)
+                table_hist = wandb.Table(data=data_hist, columns=["samples"])
+                wandb.log(
+                    {
+                        f"hist dim{i} {self._last_called}": wandb.plot.histogram(
+                            table_hist,
+                            "samples",
+                            title=f"Histogram Plot at Dim {i} ({self._last_called})",
+                        )
+                    }
+                )
 
         if kde:
             for i in range(samples.shape[1]):
                 sns.kdeplot(samples[:, i], label=f"dim {i}", alpha=0.5)
             plt.legend()
             plt.title("KDE of the Samples")
-            if save_path is not None:
-                file_path = f"{save_path}/kde.png"
-                Toolbox.create_folder(file_path)
-                plt.savefig(file_path, dpi=dpi)
-                plt.clf()
-            else:
-                plt.show()
+            wandb.log({f"KDE Plot {self._last_called}": wandb.Image(plt)})
+            plt.clf()
 
         if immediate_reward:
-            plt.plot(rewards)
-            plt.title("Immediate Reward")
-            if save_path is not None:
-                file_path = f"{save_path}/immediate_reward.png"
-                Toolbox.create_folder(file_path)
-                plt.savefig(file_path, dpi=dpi)
-                plt.clf()
-            else:
-                plt.show()
+            data_immediate_rewards = [[i, x] for (i, x) in enumerate(rewards)]
+            table_immediate_rewards = wandb.Table(
+                data=data_immediate_rewards, columns=["step", "rewards"]
+            )
+            wandb.log(
+                {
+                    f"immediate_reward {self._last_called}": wandb.plot.line(
+                        table_immediate_rewards,
+                        "step",
+                        "rewards",
+                        title=f"Immediate Reward ({self._last_called})",
+                    )
+                }
+            )
 
         if cumulative_reward:
-            plt.plot(np.cumsum(rewards))
-            plt.title("Cumulative Reward")
-            if save_path is not None:
-                file_path = f"{save_path}/cumulative_reward.png"
-                Toolbox.create_folder(file_path)
-                plt.savefig(file_path, dpi=dpi)
-                plt.clf()
-            else:
-                plt.show()
+            data_cumulative_rewards = [
+                [i, x] for (i, x) in enumerate(np.cumsum(rewards))
+            ]
+            table_cumulative_rewards = wandb.Table(
+                data=data_cumulative_rewards, columns=["step", "rewards"]
+            )
+            wandb.log(
+                {
+                    f"cumulative_reward {self._last_called}": wandb.plot.line(
+                        table_cumulative_rewards,
+                        "step",
+                        "rewards",
+                        title=f"Cumulative Reward ({self._last_called})",
+                    )
+                }
+            )
 
         if cov:
             for i in range(covariances.shape[1]):
                 plt.plot(covariances[:, i], label=f"cov {i}", alpha=0.5)
             plt.legend()
             plt.title("Trace Plot of the Covariance in Each Dimension")
-            if save_path is not None:
-                file_path = f"{save_path}/cov.png"
-                Toolbox.create_folder(file_path)
-                plt.savefig(file_path, dpi=dpi)
-                plt.clf()
-            else:
-                plt.show()
+            wandb.log({f"cov {self._last_called}": plt})
+            plt.clf()
 
         if target:
             _num = 1000
@@ -221,35 +229,44 @@ class LearningInterface(ABC, Generic[LearningInterface]):
             plt.contourf(_X, _Y, _Z.T, 50, cmap="viridis")
             plt.colorbar()
             plt.title("Target Distribution")
-            if save_path is not None:
-                file_path = f"{save_path}/target.png"
-                Toolbox.create_folder(file_path)
-                plt.savefig(file_path, dpi=dpi)
-                plt.clf()
-            else:
-                plt.show()
+            wandb.log({f"target {self._last_called}": wandb.Image(plt)})
+            plt.clf()
 
         if critic_loss:
-            plt.plot(np.array(self.critic_loss))
-            plt.title("Critic Loss")
-            if save_path is not None:
-                file_path = f"{save_path}/critic_loss.png"
-                Toolbox.create_folder(file_path)
-                plt.savefig(file_path, dpi=dpi)
-                plt.clf()
-            else:
-                plt.show()
+            data_critic_loss = [
+                [i * 100, x] for (i, x) in enumerate(np.array(self.critic_loss))
+            ]
+            table_critic_loss = wandb.Table(
+                data=data_critic_loss, columns=["step", "critic_loss"]
+            )
+            wandb.log(
+                {
+                    f"ritic_loss {self._last_called}": wandb.plot.line(
+                        table_critic_loss,
+                        "step",
+                        "critic_loss",
+                        title=f"Critic Loss ({self._last_called})",
+                    )
+                }
+            )
 
         if actor_loss:
-            plt.plot(np.array(self.actor_loss))
-            plt.title("Actor Loss")
-            if save_path is not None:
-                file_path = f"{save_path}/actor_loss.png"
-                Toolbox.create_folder(file_path)
-                plt.savefig(file_path, dpi=dpi)
-                plt.clf()
-            else:
-                plt.show()
+            data_actor_loss = [
+                [i * 100, x] for (i, x) in enumerate(np.array(self.actor_loss))
+            ]
+            table_actor_loss = wandb.Table(
+                data=data_actor_loss, columns=["step", "actor_loss"]
+            )
+            wandb.log(
+                {
+                    f"ritic_loss {self._last_called}": wandb.plot.line(
+                        table_actor_loss,
+                        "step",
+                        "actor_loss",
+                        title=f"Actor Loss ({self._last_called})",
+                    )
+                }
+            )
 
     def dataframe(self) -> pd.DataFrame:
         if self._last_called == self.train.__name__:
@@ -505,8 +522,8 @@ class LearningDDPG(LearningInterface, Generic[LearningDDPG]):
         return self
 
     def save(self, folder_path: str) -> None:
-        Toolbox.create_folder(folder_path)
         model_path = f"{folder_path}/ddpg.{time.time()}.pth"
+        Toolbox.create_folder(model_path)
         torch.save(
             {"actor": self.actor.state_dict(), "critic": self.critic.state_dict()},
             model_path,

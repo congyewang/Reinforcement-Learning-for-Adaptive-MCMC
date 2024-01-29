@@ -11,14 +11,13 @@ import json
 import bridgestan as bs
 from posteriordb import PosteriorDatabase
 
-from src.rlmcmc.utils import Args
-from src.rlmcmc.learning import LearningDDPG, LearningDDPGRandom
-
 from gymnasium.envs.registration import EnvSpec
 from typing import Union, Dict
 
-from src.rlmcmc.env import *
-from src.rlmcmc.agent import Actor, QNetwork
+from . import LearningDDPG, LearningDDPGRandom
+from ..utils import Args
+from ..env import *
+from ..agent import Actor, QNetwork
 
 
 class LearningFactoryInterface(ABC):
@@ -195,7 +194,7 @@ class LearningFactory(LearningFactoryInterface):
             learning = self.make_TD3()
         else:
             raise NotImplementedError(
-                f"{mode} is not implemented, can only be ddpg or td3."
+                f"{mode} is not implemented, can only be ddpg, td3, or ddpg_random."
             )
 
         return learning
