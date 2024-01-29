@@ -17,7 +17,7 @@ from tqdm.auto import trange
 from typing import Generic, List, TypeVar, Union
 from numpy.typing import NDArray
 
-from src.rlmcmc.utils import Toolbox
+from ..utils import Toolbox
 
 import wandb
 
@@ -54,11 +54,8 @@ class LearningInterface(ABC, Generic[LearningInterface]):
         immediate_reward: bool = True,
         cumulative_reward: bool = True,
         cov: bool = True,
-        target: bool = False,
         critic_loss: bool = False,
         actor_loss: bool = False,
-        save_path: Union[str, None] = None,
-        dpi: int = 300,
         *args,
         **kwargs,
     ) -> None:
@@ -210,26 +207,6 @@ class LearningInterface(ABC, Generic[LearningInterface]):
             plt.legend()
             plt.title("Trace Plot of the Covariance in Each Dimension")
             wandb.log({f"cov {self._last_called}": plt})
-            plt.clf()
-
-        if target:
-            _num = 1000
-            _x = np.linspace(-5, 5, _num)
-            _y = np.linspace(5, 20, _num)
-            _X, _Y = np.meshgrid(_x, _y)
-
-            _Z = np.zeros((_num, _num))
-
-            for i in range(len(_x)):
-                for j in range(len(_y)):
-                    _Z[i, j] = np.exp(
-                        unwrapped_env.log_target_pdf(np.array([_x[i], _y[j]]))
-                    )
-
-            plt.contourf(_X, _Y, _Z.T, 50, cmap="viridis")
-            plt.colorbar()
-            plt.title("Target Distribution")
-            wandb.log({f"target {self._last_called}": wandb.Image(plt)})
             plt.clf()
 
         if critic_loss:

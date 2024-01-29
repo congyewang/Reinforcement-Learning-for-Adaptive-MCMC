@@ -11,7 +11,6 @@ from matplotlib.animation import FuncAnimation, MovieWriter
 import gymnasium as gym
 from dataclasses import dataclass, fields
 from scipy.stats._multivariate import _PSD
-from scipy.stats import multivariate_normal as mvn
 
 import json
 import bridgestan as bs
