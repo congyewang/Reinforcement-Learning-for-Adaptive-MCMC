@@ -34,15 +34,59 @@ class LearningInterface(ABC, Generic[LearningInterface]):
     def train(self: LearningInterface) -> LearningInterface:
         raise NotImplementedError("train method is not implemented")
 
-    @abstractmethod
     def predict(
-        self: LearningInterface, predicted_env: gym.spaces.Box, predicted_timesteps: int
-    ) -> LearningInterface:
-        raise NotImplementedError("predict method is not implemented")
+        self,
+        predicted_env: gym.spaces.Box,
+        predicted_timesteps: int = 10_000,
+    ) -> LearningDDPG:
+        assert isinstance(
+            predicted_env.single_action_space, gym.spaces.Box
+        ), "only continuous action space is supported"
+
+        self.predicted_env = predicted_env
+
+        # Reset the environment
+        predicted_obs, _ = predicted_env.reset(seed=self.seed)
+
+        # Store predicted obs, action, and reward
+        predicted_observation: List[NDArray[np.float64]] = []
+        predicted_action: List[NDArray[np.float64]] = []
+        predicted_reward: List[NDArray[np.float64]] = []
+
+        for _ in trange(predicted_timesteps):
+            with torch.no_grad():
+                predicted_actions = self.actor(
+                    torch.from_numpy(predicted_obs).to(self.device)
+                )
+
+            predicted_obs, predicted_rewards, _, _, _ = predicted_env.step(
+                predicted_actions.detach().cpu().numpy()
+            )
+
+            predicted_observation.append(predicted_obs)
+            predicted_action.append(predicted_actions.view(-1).detach().cpu().numpy())
+            predicted_reward.append(predicted_rewards)
+
+        self.predicted_observation = np.array(predicted_observation).reshape(
+            -1, np.prod(predicted_env.single_observation_space.shape)
+        )
+        self.predicted_action = np.array(predicted_action)
+        self.predicted_reward = np.array(predicted_reward).flatten()
+
+        self._last_called = self.predict.__name__
+        return self
 
     @abstractmethod
     def save(self, folder_path: str) -> None:
         raise NotImplementedError("save method is not implemented")
+
+    def soft_clipping(self, g: torch.Tensor, t: float = 1.0, p: int = 2):
+        """
+        Soft clipping function for gradient clipping.
+        """
+
+        norm = torch.norm(g, p=p)
+        return t / (t + norm) * g
 
     def plot(
         self,
@@ -351,31 +395,23 @@ class LearningDDPG(LearningInterface, Generic[LearningDDPG]):
         self.seed = seed
         self.device = device
 
-        self.critic_loss = []
-        self.actor_loss = []
+        self.critic_loss: List[float] = []
+        self.actor_loss: List[float] = []
 
         self.predicted_observation: List[NDArray[np.float64]] = []
         self.predicted_action: List[NDArray[np.float64]] = []
         self.predicted_reward: List[NDArray[np.float64]] = []
-
-    def soft_clipping(self, g: torch.Tensor, t: float = 1.0, p: int = 2):
-        """
-        Soft clipping function for gradient clipping.
-        """
-
-        norm = torch.norm(g, p=p)
-        return t / (t + norm) * g
 
     def train(self: LearningDDPG, gradient_clipping: bool = False) -> LearningDDPG:
         """
         Training Session for DDPG.
         """
         if gradient_clipping:
-            for p in self.critic.parameters():
-                p.register_hook(self.soft_clipping)
+            for p_critic in self.critic.parameters():
+                p_critic.register_hook(self.soft_clipping)
 
-            for p in self.actor.parameters():
-                p.register_hook(self.soft_clipping)
+            for p_actor in self.actor.parameters():
+                p_actor.register_hook(self.soft_clipping)
 
         for global_step in trange(self.total_timesteps):
             if global_step < self.learning_starts:
@@ -397,7 +433,17 @@ class LearningDDPG(LearningInterface, Generic[LearningDDPG]):
             else:
                 with torch.no_grad():
                     actions = self.actor(torch.from_numpy(self.obs).to(self.device))
-
+                    actions += torch.normal(
+                        0, torch.ones_like(actions) * self.exploration_noise
+                    )
+                    actions = (
+                        actions.cpu()
+                        .numpy()
+                        .clip(
+                            self.env.single_action_space.low,
+                            self.env.single_action_space.high,
+                        )
+                    )
             next_obs, rewards, terminations, truncations, self.infos = self.env.step(
                 actions
             )
@@ -456,48 +502,6 @@ class LearningDDPG(LearningInterface, Generic[LearningDDPG]):
         self._last_called = self.train.__name__
         return self
 
-    def predict(
-        self: LearningDDPG,
-        predicted_env: gym.spaces.Box,
-        predicted_timesteps: int = 10_000,
-    ) -> LearningDDPG:
-        assert isinstance(
-            predicted_env.single_action_space, gym.spaces.Box
-        ), "only continuous action space is supported"
-
-        self.predicted_env = predicted_env
-
-        # Reset the environment
-        predicted_obs, _ = predicted_env.reset(seed=self.seed)
-
-        # Store predicted obs, action, and reward
-        predicted_observation: List[NDArray[np.float64]] = []
-        predicted_action: List[NDArray[np.float64]] = []
-        predicted_reward: List[NDArray[np.float64]] = []
-
-        for _ in trange(predicted_timesteps):
-            with torch.no_grad():
-                predicted_actions = self.actor(
-                    torch.from_numpy(predicted_obs).to(self.device)
-                )
-
-            predicted_obs, predicted_rewards, _, _, _ = predicted_env.step(
-                predicted_actions.detach().cpu().numpy()
-            )
-
-            predicted_observation.append(predicted_obs)
-            predicted_action.append(predicted_actions.view(-1).detach().cpu().numpy())
-            predicted_reward.append(predicted_rewards)
-
-        self.predicted_observation = np.array(predicted_observation).reshape(
-            -1, np.prod(predicted_env.single_observation_space.shape)
-        )
-        self.predicted_action = np.array(predicted_action)
-        self.predicted_reward = np.array(predicted_reward).flatten()
-
-        self._last_called = self.predict.__name__
-        return self
-
     def save(self, folder_path: str) -> None:
         model_path = f"{folder_path}/ddpg.{time.time()}.pth"
         Toolbox.create_folder(model_path)
@@ -508,7 +512,212 @@ class LearningDDPG(LearningInterface, Generic[LearningDDPG]):
 
 
 class LearningTD3(LearningInterface, Generic[LearningTD3]):
-    pass
+    def __init__(
+        self,
+        env: gym.spaces.Box,
+        actor: torch.nn.Module,
+        target_actor: torch.nn.Module,
+        critic1: torch.nn.Module,
+        target_critic1: torch.nn.Module,
+        critic2: torch.nn.Module,
+        target_critic2: torch.nn.Module,
+        actor_optimizer: torch.optim.Optimizer,
+        critic_optimizer: torch.optim.Optimizer,
+        replay_buffer: ReplayBuffer,
+        total_timesteps: int = 10_000,
+        learning_starts: int = 32,
+        batch_size: int = 32,
+        policy_noise: float = 0.2,
+        exploration_noise: float = 0.1,
+        gamma: float = 0.99,
+        policy_frequency: int = 2,
+        noise_clip: float = 0.5,
+        tau: float = 0.005,
+        seed: Union[int, None] = None,
+        device: torch.device = torch.device("cpu"),
+    ) -> None:
+        super().__init__()
+        assert isinstance(
+            env.single_action_space, gym.spaces.Box
+        ), "only continuous action space is supported"
+        self.env = env
+
+        self.obs, self.infos = env.reset(seed=seed)
+        self.sample_dim: int = np.prod(env.single_observation_space.shape) >> 1
+
+        self.actor = actor
+        self.target_actor = target_actor
+        self.critic1 = critic1
+        self.target_critic1 = target_critic1
+        self.critic2 = critic2
+        self.target_critic2 = target_critic2
+
+        self.actor_optimizer = actor_optimizer
+        self.critic_optimizer = critic_optimizer
+
+        self.replay_buffer = replay_buffer
+
+        self.total_timesteps = total_timesteps
+        self.learning_starts = learning_starts
+        self.batch_size = batch_size
+        self.policy_noise = policy_noise
+        self.exploration_noise = exploration_noise
+        self.gamma = gamma
+        self.policy_frequency = policy_frequency
+        self.noise_clip = noise_clip
+        self.tau = tau
+        self.seed = seed
+        self.device = device
+
+        self.critic_loss: List[float] = []
+        self.actor_loss: List[float] = []
+
+        self.predicted_observation: List[NDArray[np.float64]] = []
+        self.predicted_action: List[NDArray[np.float64]] = []
+        self.predicted_reward: List[NDArray[np.float64]] = []
+
+    def train(self: LearningTD3, gradient_clipping: bool = False) -> LearningTD3:
+        """
+        Training Session for TD3.
+        """
+        if gradient_clipping:
+            for p_critic1 in self.critic1.parameters():
+                p_critic1.register_hook(self.soft_clipping)
+
+            for p_critic2 in self.critic2.parameters():
+                p_critic2.register_hook(self.soft_clipping)
+
+            for p_actor in self.actor.parameters():
+                p_actor.register_hook(self.soft_clipping)
+
+        for global_step in trange(self.total_timesteps):
+            if global_step < self.learning_starts:
+                actions = np.array(
+                    [
+                        np.hstack(
+                            (
+                                np.eye(self.sample_dim, dtype=np.float64).reshape(
+                                    -1, self.sample_dim << 1
+                                ),
+                                np.eye(self.sample_dim, dtype=np.float64).reshape(
+                                    -1, self.sample_dim << 1
+                                ),
+                            )
+                        )
+                        for _ in range(self.env.num_envs)
+                    ]
+                ).reshape(1, -1)
+            else:
+                with torch.no_grad():
+                    actions = self.actor(torch.from_numpy(self.obs).to(self.device))
+                    actions += torch.normal(
+                        0, torch.ones_like(actions) * self.exploration_noise
+                    )
+                    actions = (
+                        actions.cpu()
+                        .numpy()
+                        .clip(
+                            self.env.single_action_space.low,
+                            self.env.single_action_space.high,
+                        )
+                    )
+
+            next_obs, rewards, terminations, truncations, self.infos = self.env.step(
+                actions
+            )
+
+            real_next_obs = next_obs.copy()
+            self.replay_buffer.add(
+                self.obs, real_next_obs, actions, rewards, terminations, self.infos
+            )
+
+            self.obs = next_obs
+
+            if global_step > self.learning_starts:
+                data = self.replay_buffer.sample(self.batch_size)
+                with torch.no_grad():
+                    clipped_noise = (
+                        torch.randn_like(data.actions, device=self.device)
+                        * self.policy_noise
+                    ).clamp(-self.noise_clip, self.noise_clip)
+                    next_state_actions = (
+                        self.target_actor(data.next_observations) + clipped_noise
+                    )
+
+                    critic1_next_target = self.target_critic1(
+                        data.next_observations, next_state_actions
+                    )
+                    critic2_next_target = self.target_critic2(
+                        data.next_observations, next_state_actions
+                    )
+                    min_critic_next_target = torch.min(
+                        critic1_next_target, critic2_next_target
+                    )
+                    next_q_value = data.rewards.flatten() + (
+                        1 - data.dones.flatten()
+                    ) * self.gamma * (min_critic_next_target).view(-1)
+
+                critic1_a_values = self.critic1(data.observations, data.actions).view(
+                    -1
+                )
+                critic2_a_values = self.critic2(data.observations, data.actions).view(
+                    -1
+                )
+                critic1_loss = F.mse_loss(critic1_a_values, next_q_value)
+                critic2_loss = F.mse_loss(critic2_a_values, next_q_value)
+                critic_loss = critic1_loss + critic2_loss
+
+                # optimize the model
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                self.critic_optimizer.step()
+
+                if global_step % self.policy_frequency == 0:
+                    actor_loss = -self.critic1(
+                        data.observations, self.actor(data.observations)
+                    ).mean()
+                    self.actor_optimizer.zero_grad()
+                    actor_loss.backward()
+                    self.actor_optimizer.step()
+
+                    # update the target network
+                    for param, target_param in zip(
+                        self.actor.parameters(), self.target_actor.parameters()
+                    ):
+                        target_param.data.copy_(
+                            self.tau * param.data + (1 - self.tau) * target_param.data
+                        )
+                    for param, target_param in zip(
+                        self.critic1.parameters(), self.target_critic1.parameters()
+                    ):
+                        target_param.data.copy_(
+                            self.tau * param.data + (1 - self.tau) * target_param.data
+                        )
+                    for param, target_param in zip(
+                        self.critic2.parameters(), self.target_critic2.parameters()
+                    ):
+                        target_param.data.copy_(
+                            self.tau * param.data + (1 - self.tau) * target_param.data
+                        )
+
+                if global_step % 100 == 0:
+                    self.critic_loss.append(critic_loss.item())
+                    self.actor_loss.append(actor_loss.item())
+
+        self._last_called = self.train.__name__
+        return self
+
+    def save(self, folder_path: str) -> None:
+        model_path = f"{folder_path}/td3.{time.time()}.pth"
+        Toolbox.create_folder(model_path)
+        torch.save(
+            {
+                "actor": self.actor.state_dict(),
+                "critic1": self.critic1.state_dict(),
+                "critic2": self.critic2.state_dict(),
+            },
+            model_path,
+        )
 
 
 class LearningDDPGRandom(LearningDDPG):
@@ -606,6 +815,132 @@ class LearningDDPGRandom(LearningDDPG):
                         )
                     for param, target_param in zip(
                         self.critic.parameters(), self.target_critic.parameters()
+                    ):
+                        target_param.data.copy_(
+                            self.tau * param.data + (1 - self.tau) * target_param.data
+                        )
+
+                if global_step % 100 == 0:
+                    self.critic_loss.append(critic_loss.item())
+                    self.actor_loss.append(actor_loss.item())
+
+        self._last_called = self.train.__name__
+        return self
+
+
+class LearningTD3Random(LearningTD3):
+    def train(self: LearningTD3, gradient_clipping: bool = False) -> LearningTD3:
+        """
+        Training Session for TD3.
+        """
+        if gradient_clipping:
+            for p_critic1 in self.critic1.parameters():
+                p_critic1.register_hook(self.soft_clipping)
+
+            for p_critic2 in self.critic2.parameters():
+                p_critic2.register_hook(self.soft_clipping)
+
+            for p_actor in self.actor.parameters():
+                p_actor.register_hook(self.soft_clipping)
+
+        for global_step in trange(self.total_timesteps):
+            if global_step < self.learning_starts:
+                actions = np.array(
+                    [
+                        wishart.rvs(
+                            self.sample_dim, np.eye(self.sample_dim), size=2
+                        ).reshape(-1, self.sample_dim << 2)
+                        for _ in range(self.env.num_envs)
+                    ]
+                ).reshape(1, -1)
+            else:
+                with torch.no_grad():
+                    actions = self.actor(torch.from_numpy(self.obs).to(self.device))
+                    actions += torch.normal(
+                        0, torch.ones_like(actions) * self.exploration_noise
+                    )
+                    actions = (
+                        actions.cpu()
+                        .numpy()
+                        .clip(
+                            self.env.single_action_space.low,
+                            self.env.single_action_space.high,
+                        )
+                    )
+
+            next_obs, rewards, terminations, truncations, self.infos = self.env.step(
+                actions
+            )
+
+            real_next_obs = next_obs.copy()
+            self.replay_buffer.add(
+                self.obs, real_next_obs, actions, rewards, terminations, self.infos
+            )
+
+            self.obs = next_obs
+
+            if global_step > self.learning_starts:
+                data = self.replay_buffer.sample(self.batch_size)
+                with torch.no_grad():
+                    clipped_noise = (
+                        torch.randn_like(data.actions, device=self.device)
+                        * self.policy_noise
+                    ).clamp(-self.noise_clip, self.noise_clip)
+                    next_state_actions = (
+                        self.target_actor(data.next_observations) + clipped_noise
+                    )
+
+                    critic1_next_target = self.target_critic1(
+                        data.next_observations, next_state_actions
+                    )
+                    critic2_next_target = self.target_critic2(
+                        data.next_observations, next_state_actions
+                    )
+                    min_critic_next_target = torch.min(
+                        critic1_next_target, critic2_next_target
+                    )
+                    next_q_value = data.rewards.flatten() + (
+                        1 - data.dones.flatten()
+                    ) * self.gamma * (min_critic_next_target).view(-1)
+
+                critic1_a_values = self.critic1(data.observations, data.actions).view(
+                    -1
+                )
+                critic2_a_values = self.critic2(data.observations, data.actions).view(
+                    -1
+                )
+                critic1_loss = F.mse_loss(critic1_a_values, next_q_value)
+                critic2_loss = F.mse_loss(critic2_a_values, next_q_value)
+                critic_loss = critic1_loss + critic2_loss
+
+                # optimize the model
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                self.critic_optimizer.step()
+
+                if global_step % self.policy_frequency == 0:
+                    actor_loss = -self.critic1(
+                        data.observations, self.actor(data.observations)
+                    ).mean()
+                    self.actor_optimizer.zero_grad()
+                    actor_loss.backward()
+                    self.actor_optimizer.step()
+
+                    # update the target network
+                    for param, target_param in zip(
+                        self.actor.parameters(), self.target_actor.parameters()
+                    ):
+                        target_param.data.copy_(
+                            self.tau * param.data + (1 - self.tau) * target_param.data
+                        )
+                    for param, target_param in zip(
+                        self.critic1.parameters(), self.target_critic1.parameters()
+                    ):
+                        target_param.data.copy_(
+                            self.tau * param.data + (1 - self.tau) * target_param.data
+                        )
+                    for param, target_param in zip(
+                        self.critic2.parameters(), self.target_critic2.parameters()
                     ):
                         target_param.data.copy_(
                             self.tau * param.data + (1 - self.tau) * target_param.data
