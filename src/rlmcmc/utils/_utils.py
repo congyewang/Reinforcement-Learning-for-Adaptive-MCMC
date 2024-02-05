@@ -2,8 +2,11 @@ import os
 import re
 import numpy as np
 import pandas as pd
-import matplotlib
 
+import torch
+from torch import nn
+
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import patches
 from matplotlib.patches import Ellipse
@@ -372,3 +375,77 @@ class MCMCAnimation:
         """
         Toolbox.create_folder(anim_file_path)
         self.anim.save(anim_file_path, writer=writer)
+
+
+class KernelRidgeRegression(nn.Module):
+    """
+    Kernel Ridge Regression Model
+    """
+
+    def __init__(
+        self,
+        kernel: str = "rbf",
+        lambda_param: float = 1.0,
+        **kwargs: Dict[str, Union[float, None]],
+    ):
+        super(KernelRidgeRegression, self).__init__()
+
+        self.kernel_func = self.make_kernel(kernel=kernel)
+
+        self.lambda_param = lambda_param
+        self.alpha_: Union[torch.Tensor, None] = None  # Dual coefficients
+
+        self.gamma: Union[float, None] = kwargs.get("gamma", None)
+        self.c: Union[float, None] = kwargs.get("c", 1.0)
+
+    def fit(self, X_train: torch.Tensor, y_train: torch.Tensor):
+        """
+        Fit the model with the given training data.
+        """
+        self.X_train = X_train
+        K_mat = self.kernel_func(X_train, X_train)  # Compute the kernel matrix
+        n_samples = K_mat.size(0)
+
+        # Adding lambda * I to the diagonal (Ridge Regression)
+        K_mat += torch.eye(n_samples) * self.lambda_param
+
+        # Solve for alpha (dual coefficients)
+        self.alpha_ = torch.linalg.solve(K_mat, y_train)
+
+    def predict(self, X_test: torch.Tensor):
+        """
+        Predict the target values for the given test data.
+        """
+        K_test = self.kernel_func(X_test, self.X_train)
+        return K_test @ self.alpha_
+
+    def make_kernel(self, kernel: str = "rbf"):
+        """
+        Make the kernel function.
+        """
+        if kernel == "rbf":
+            return self.rbf_kernel
+        elif kernel == "imq":
+            return self.imq_kernel
+        else:
+            raise ValueError("Invalid kernel function")
+
+    def rbf_kernel(self, X1: torch.Tensor, X2: torch.Tensor):
+        """
+        Radial Basis Function (RBF) Kernel
+        """
+        if self.gamma is None:
+            self.gamma = 1.0 / X1.size(1)
+
+        dist = torch.cdist(X1, X2) ** 2
+        return torch.exp(-self.gamma * dist)
+
+    def imq_kernel(self, X1: torch.Tensor, X2: torch.Tensor):
+        """
+        Inverse Multi-Quadratic (IMQ) Kernel
+        """
+        if self.c is None:
+            self.c = 1.0
+
+        dist = torch.cdist(X1, X2) ** 2
+        return 1.0 / torch.sqrt(dist + self.c**2)
