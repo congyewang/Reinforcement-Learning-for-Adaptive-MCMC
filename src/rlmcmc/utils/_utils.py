@@ -386,7 +386,7 @@ class KernelRidgeRegression(nn.Module):
         self,
         kernel: str = "rbf",
         lambda_param: float = 1.0,
-        **kwargs: Dict[str, Union[float, None]],
+        **kwargs: Union[float, None],
     ):
         super(KernelRidgeRegression, self).__init__()
 

@@ -1,25 +1,65 @@
 from gymnasium.envs.registration import register
-from ._env import RLMHEnvBase, RLMHEnvV31, RLMHEnvV31A, RLMHEnvV31B, RLMHEnvV33
+from ._env import (
+    RLMHEnvBase,
+    RLMHEnvV31,
+    RLMHEnvV31A,
+    RLMHEnvV31B,
+    RLMHEnvV33,
+    RLMHEnvV6,
+    RLMHEnvV61,
+    RLMHEnvV7,
+    RLMHEnvV71,
+)
 
 
 register(
-    id='RLMHEnv-v3.1',
-    entry_point='src.rlmcmc.env._env:RLMHEnvV31',
+    id="RLMHEnv-v3.1",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV31",
 )
 
 register(
-    id='RLMHEnv-v3.1.a',
-    entry_point='src.rlmcmc.env._env:RLMHEnvV31A',
+    id="RLMHEnv-v3.1.a",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV31A",
 )
 
 register(
-    id='RLMHEnv-v3.1.b',
-    entry_point='src.rlmcmc.env._env:RLMHEnvV31B',
+    id="RLMHEnv-v3.1.b",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV31B",
 )
 
 register(
-    id='RLMHEnv-v3.3',
-    entry_point='src.rlmcmc.env._env:RLMHEnvV33',
+    id="RLMHEnv-v3.3",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV33",
 )
 
-__all__ = ["RLMHEnvBase", "RLMHEnvV31", "RLMHEnvV31A", "RLMHEnvV31B", "RLMHEnvV33"]
+register(
+    id="RLMHEnv-v6.0",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV6",
+)
+
+register(
+    id="RLMHEnv-v6.1",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV61",
+)
+
+register(
+    id="RLMHEnv-v7.0",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV7",
+)
+
+register(
+    id="RLMHEnv-v7.1",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV71",
+)
+
+__all__ = [
+    "RLMHEnvBase",
+    "RLMHEnvV31",
+    "RLMHEnvV31A",
+    "RLMHEnvV31B",
+    "RLMHEnvV33",
+    "RLMHEnvV6",
+    "RLMHEnvV61",
+    "RLMHEnvV7",
+    "RLMHEnvV71",
+]

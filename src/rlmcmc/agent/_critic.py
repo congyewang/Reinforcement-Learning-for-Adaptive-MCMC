@@ -12,12 +12,11 @@ class QNetwork(nn.Module):
         self.fc1 = nn.Linear(
             np.array(envs.single_observation_space.shape).prod()
             + np.prod(envs.single_action_space.shape),
-            32,
-            bias=False,
+            32
         )
-        self.fc2 = nn.Linear(32, 16, bias=False)
-        self.fc3 = nn.Linear(16, 8, bias=False)
-        self.fc_out = nn.Linear(8, 1, bias=True)
+        self.fc2 = nn.Linear(32, 16)
+        self.fc3 = nn.Linear(16, 8)
+        self.fc_out = nn.Linear(8, 1)
 
     def forward(self, x: torch.Tensor, a: torch.Tensor):
         x = torch.cat([x, a], 1)

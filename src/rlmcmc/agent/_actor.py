@@ -15,10 +15,10 @@ class Actor(nn.Module):
 
         self.sample_dim = int(np.array(envs.single_observation_space.shape).prod()) >> 1
 
-        self.fc1 = nn.Linear(self.sample_dim, 32, bias=False)
-        self.fc2 = nn.Linear(32, 16, bias=False)
-        self.fc3 = nn.Linear(16, 8, bias=False)
-        self.fc_mu = nn.Linear(8, self.sample_dim + 1, bias=True)
+        self.fc1 = nn.Linear(self.sample_dim, 32)
+        self.fc2 = nn.Linear(32, 16)
+        self.fc3 = nn.Linear(16, 8)
+        self.fc_mu = nn.Linear(8, self.sample_dim + 1)
 
         # self.init_weights()
 
@@ -75,14 +75,8 @@ class Actor(nn.Module):
     def generate_proposed_sample(
         self, current_sample: torch.Tensor, mcmc_noise: torch.Tensor
     ) -> torch.Tensor:
-        current_covariance = self.covariance(current_sample)
-        try:
-            L: torch.Tensor = torch.linalg.cholesky(current_covariance)
-        except Exception:
-            print("current_covariance:", current_covariance)
-            raise
         return current_sample + torch.einsum(
             "ij,ijk->ik",
             mcmc_noise,
-            L,
+            torch.linalg.cholesky(self.covariance(current_sample))
         )
