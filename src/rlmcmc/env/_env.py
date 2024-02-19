@@ -603,7 +603,7 @@ class RLMHEnvV6(RLMHEnvBase):
 
         # Action specification
         self.action_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(sample_dim + 1,), dtype=np.float64
+            low=-np.inf, high=np.inf, shape=((sample_dim + 1) << 1,), dtype=np.float64
         )
 
         # Define Observation and Current Covariance
@@ -647,23 +647,42 @@ class RLMHEnvV6(RLMHEnvBase):
     ]:
         # Check Action Shape
         assert (
-            action.shape[0] == self.sample_dim + 1
-        ), f"Action shape is {action.shape}, but expected shape is {(self.sample_dim + 1, )}"
+            action.shape[0] == (self.sample_dim + 1) << 1
+        ), f"Action shape is {action.shape}, but expected shape is {((self.sample_dim + 1) << 1, )}"
 
         # Extract Current Sample
         current_sample, mcmc_noise = np.split(
             self.observation, [self.sample_dim], axis=0
         )
 
+        # Extract the Current Vector and Proposed Vector
+        current_vector, proposed_vector = np.split(
+            action, [self.sample_dim + 1], axis=0
+        )
+
         # Extract the Sample Vector and Covariance Magnification
-        sample_vector, cov_mag = np.split(action, [self.sample_dim], axis=0)
+        current_position, current_covariance_magnification = np.split(
+            current_vector, [self.sample_dim], axis=0
+        )
+
+        proposed_position, proposed_covariance_magnification = np.split(
+            proposed_vector, [self.sample_dim], axis=0
+        )
 
         # Generate Proposed Sample
-        proposed_sample = current_sample + sample_vector * current_sample + cov_mag * mcmc_noise
+        proposed_sample = (
+            current_sample
+            + current_position * current_sample
+            + current_covariance_magnification * mcmc_noise
+        )
 
         # Reshape to Covariance Matrix
-        current_covariance = self.current_covariance
-        proposed_covariance = cov_mag**2 * np.eye(self.sample_dim)
+        current_covariance = current_covariance_magnification**2 * np.eye(
+            self.sample_dim
+        )
+        proposed_covariance = proposed_covariance_magnification**2 * np.eye(
+            self.sample_dim
+        )
 
         # Avoid Singular Covariance
         nearest_proposed_covariance: NDArray[np.float64] = Toolbox.nearestPD(
@@ -1071,6 +1090,264 @@ class RLMHEnvV7(RLMHEnvBase):
 
 
 class RLMHEnvV71(RLMHEnvV7):
+    def reward_function(
+        self,
+        current_sample: NDArray[np.float64],
+        accepted_sample: NDArray[np.float64],
+        log_alpha: np.float64,
+    ) -> np.float64:
+        return np.power(self.distance_function(current_sample, accepted_sample), 2)
+
+
+class RLMHEnvV8(RLMHEnvBase):
+    def __init__(
+        self,
+        log_target_pdf: Callable[[NDArray[np.float64]], np.float64],
+        sample_dim: int = 2,
+        total_timesteps: int = 10_000,
+    ) -> None:
+        super().__init__(log_target_pdf, sample_dim, total_timesteps)
+
+        # Observation specification
+        self.observation_space = spaces.Box(
+            low=-np.inf, high=np.inf, shape=(sample_dim << 1,), dtype=np.float64
+        )
+
+        # Action specification
+        self.action_space = spaces.Box(
+            low=-np.inf, high=np.inf, shape=((sample_dim + 1) << 1,), dtype=np.float64
+        )
+
+        # Define Observation and Current Covariance
+        self.observation: NDArray[np.float64] = np.zeros(self.sample_dim)
+        self.current_covariance: NDArray[np.float64] = np.eye(self.sample_dim)
+
+        # Add Additional Store
+        self._store_accepted_covariance: List[NDArray[np.float64]] = []
+        self._store_proposed_sample: List[NDArray[np.float64]] = []
+        self._store_current_sample: List[NDArray[np.float64]] = []
+
+        self._store_log_target_proposed: List[np.float64] = []
+        self._store_log_target_current: List[np.float64] = []
+        self._store_log_proposal_proposed: List[np.float64] = []
+        self._store_log_proposal_current: List[np.float64] = []
+
+        self._store_nearest_proposed_covariance: List[NDArray[np.float64]] = []
+        self._store_nearest_current_covariance: List[NDArray[np.float64]] = []
+
+    def distance_function(
+        self, current_sample: NDArray[np.float64], proposed_sample: NDArray[np.float64]
+    ) -> np.float64:
+        return np.linalg.norm(current_sample - proposed_sample, 2)
+
+    def reward_function(
+        self,
+        current_sample: NDArray[np.float64],
+        proposed_sample: NDArray[np.float64],
+        log_alpha: np.float64,
+    ) -> np.float64:
+        return np.power(
+            self.distance_function(current_sample, proposed_sample), 2
+        ) * np.exp(log_alpha)
+
+    def step(self, action: NDArray[np.float64]) -> Tuple[
+        NDArray[np.float64],
+        np.float64,
+        bool,
+        bool,
+        Dict[str, Union[NDArray[np.float64], bool, np.float64]],
+    ]:
+        # Check Action Shape
+        assert (
+            action.shape[0] == (self.sample_dim + 1) << 1
+        ), f"Action shape is {action.shape}, but expected shape is {((self.sample_dim + 1) << 1, )}"
+
+        # Extract Current and Proposed Sample
+        current_sample, proposed_sample = np.split(
+            self.observation, [self.sample_dim], axis=0
+        )
+
+        # Extract the Current Vector and Proposed Vector
+        (
+            current_low_rank_vector_and_magnification,
+            proposed_low_rank_vector_and_magnification,
+        ) = np.split(action, [self.sample_dim + 1], axis=0)
+
+        # Extract the Sample Vector and Covariance Magnification
+        current_vector, current_covariance_magnification = np.split(
+            current_low_rank_vector_and_magnification, [self.sample_dim], axis=0
+        )
+        proposed_vector, proposed_covariance_magnification = np.split(
+            proposed_low_rank_vector_and_magnification, [self.sample_dim], axis=0
+        )
+
+        # Restore Covariance Matrix
+        current_covariance = current_covariance_magnification**2 * np.eye(
+            self.sample_dim
+        )
+        proposed_covariance = proposed_covariance_magnification**2 * np.eye(
+            self.sample_dim
+        )
+
+        # Avoid Singular Covariance
+        nearest_proposed_covariance: NDArray[np.float64] = Toolbox.nearestPD(
+            proposed_covariance
+        )
+        nearest_current_covariance: NDArray[np.float64] = Toolbox.nearestPD(
+            current_covariance
+        )
+
+        # Calculate Log Target Density
+        log_target_proposed = self.log_target_pdf(proposed_sample)
+        log_target_current = self.log_target_pdf(current_sample)
+
+        ## Avoid -np.inf
+        if np.isneginf(log_target_proposed) and np.isneginf(log_target_current):
+            log_target_probability = -INF
+        else:
+            if np.isneginf(log_target_proposed):
+                log_target_proposed = -INF
+            if np.isneginf(log_target_current):
+                log_target_current = -INF
+
+            log_target_probability = log_target_proposed - log_target_current
+
+        # Calculate Log Proposal Densitys
+        log_proposal_proposed = self.log_proposal_pdf(
+            proposed_sample, current_sample, nearest_current_covariance
+        )
+        log_proposal_current = self.log_proposal_pdf(
+            current_sample, proposed_sample, nearest_proposed_covariance
+        )
+
+        log_proposal_probability = log_proposal_current - log_proposal_proposed
+
+        # Calculate Log Acceptance Rate
+        log_alpha = np.min(
+            [np.float64(0.0), log_target_probability + log_proposal_probability]
+        )
+
+        # Accept or Reject
+        if np.log(self.np_random.uniform()) < log_alpha:
+            accepted_status = True
+            accepted_sample = proposed_sample
+            accepted_covariance = proposed_covariance
+        else:
+            accepted_status = False
+            accepted_sample = current_sample
+            accepted_covariance = current_covariance
+
+        # Update Observation
+        next_proposed_sample = multivariate_normal.rvs(
+            mean=accepted_sample, cov=accepted_covariance, size=1
+        ).reshape(-1)
+        self.observation = np.hstack((accepted_sample, next_proposed_sample))
+        self.current_covariance = accepted_covariance
+        self._store_accepted_covariance.append(accepted_covariance)
+
+        # Store
+        self.store_observation.append(self.observation)
+        self.store_accetped_status.append(accepted_status)
+        self.store_action.append(action)
+        self.store_log_accetance_rate.append(log_alpha)
+
+        self._store_proposed_sample.append(proposed_sample)
+        self._store_current_sample.append(current_sample)
+
+        self._store_log_target_proposed.append(log_target_proposed)
+        self._store_log_target_current.append(log_target_current)
+        self._store_log_proposal_proposed.append(log_proposal_proposed)
+        self._store_log_proposal_current.append(log_proposal_current)
+
+        self._store_nearest_proposed_covariance.append(nearest_proposed_covariance)
+        self._store_nearest_current_covariance.append(nearest_current_covariance)
+
+        # Calculate Reward
+        reward = self.reward_function(current_sample, proposed_sample, log_alpha)
+        self.store_reward.append(reward)
+
+        # Check for Completion
+        terminated = self.steps > self.total_timesteps
+        truncated = terminated
+
+        # Check for Termination
+        if terminated:
+            pass
+
+        # Update Steps
+        self.steps += 1
+
+        # Information
+        info = {
+            "observation": self.observation,
+            "accepted_sample": accepted_sample,
+            "current_sample": current_sample,
+            "proposed_sample": proposed_sample,
+            "accepted_status": accepted_status,
+            "reward": reward,
+            "terminated": terminated,
+            "truncated": truncated,
+        }
+
+        return self.observation, reward, terminated, truncated, info
+
+    def reset(self, seed: Union[int, None] = None, options: Any = None):
+        # Gym Recommandation
+        super().reset(seed=seed)
+
+        # Set Random Seed
+        if seed is not None:
+            self._np_random, seed = seeding.np_random(seed)
+
+        # Initial Steps
+        self.steps = 0
+
+        # Initialize Observation
+        self.observation = np.hstack(
+            (
+                np.zeros(self.sample_dim),
+                self.np_random.normal(size=self.sample_dim),
+            )
+        )
+
+        # Initialize Current Covariance
+        self.current_covariance = np.eye(self.sample_dim)
+
+        # Initialize Store
+        self.store_observation: List[NDArray[np.float64]] = []
+        self.store_action: List[NDArray[np.float64]] = []
+        self.store_log_accetance_rate: List[np.float64] = []
+        self.store_accetped_status: List[bool] = []
+        self.store_reward: List[np.float64] = []
+
+        self._store_proposed_sample: List[NDArray[np.float64]] = []
+        self._store_current_sample: List[NDArray[np.float64]] = []
+
+        self._store_log_target_proposed: List[np.float64] = []
+        self._store_log_target_current: List[np.float64] = []
+        self._store_log_proposal_proposed: List[np.float64] = []
+        self._store_log_proposal_current: List[np.float64] = []
+
+        self._store_nearest_proposed_covariance: List[NDArray[np.float64]] = []
+        self._store_nearest_current_covariance: List[NDArray[np.float64]] = []
+
+        self._store_accepted_covariance: List[NDArray[np.float64]] = []
+
+        self.store_observation.append(self.observation)
+        self._store_accepted_covariance.append(self.current_covariance)
+
+        # Information Dictionary
+        info = {
+            "observation": self.observation,
+            "log_accetance_rate": None,
+            "accepted_status": None,
+            "reward": None,
+        }
+
+        return self.observation, info
+
+
+class RLMHEnvV81(RLMHEnvV8):
     def reward_function(
         self,
         current_sample: NDArray[np.float64],
