@@ -11,6 +11,9 @@ from ._env import (
     RLMHEnvV71,
     RLMHEnvV8,
     RLMHEnvV81,
+    RLMHEnvV82,
+    RLMHEnvV83,
+    RLMHEnvV84
 )
 
 
@@ -64,6 +67,22 @@ register(
     entry_point="src.rlmcmc.env._env:RLMHEnvV81",
 )
 
+register(
+    id="RLMHEnv-v8.2",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV82",
+)
+
+register(
+    id="RLMHEnv-v8.3",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV83",
+)
+
+register(
+    id="RLMHEnv-v8.4",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV84",
+)
+
+
 __all__ = [
     "RLMHEnvBase",
     "RLMHEnvV31",
@@ -76,4 +95,7 @@ __all__ = [
     "RLMHEnvV71",
     "RLMHEnvV8",
     "RLMHEnvV81",
+    "RLMHEnvV82",
+    "RLMHEnvV83",
+    "RLMHEnvV84"
 ]
