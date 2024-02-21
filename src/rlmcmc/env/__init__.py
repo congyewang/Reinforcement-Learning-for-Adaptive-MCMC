@@ -2,6 +2,7 @@ from gymnasium.envs.registration import register
 from ._env import (
     RLMHEnvBase,
     RLMHEnvV300a1,
+    RLMHEnvV301a11,
     RLMHEnvV301a1,
     RLMHEnvV31,
     RLMHEnvV31A,
@@ -10,6 +11,7 @@ from ._env import (
     RLMHEnvV6,
     RLMHEnvV61,
     RLMHEnvV7,
+    RLMHEnvV701,
     RLMHEnvV71,
     RLMHEnvV8,
     RLMHEnvV81,
@@ -21,6 +23,11 @@ from ._env import (
 register(
     id="RLMHEnv-v3.0.0.alpha.1",
     entry_point="src.rlmcmc.env._env:RLMHEnvV300a1",
+)
+
+register(
+    id="RLMHEnv-v3.0.0.alpha.1.1",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV301a11",
 )
 
 register(
@@ -64,6 +71,11 @@ register(
 )
 
 register(
+    id="RLMHEnv-v7.0.1",
+    entry_point="src.rlmcmc.env._env:RLMHEnvV701",
+)
+
+register(
     id="RLMHEnv-v7.1",
     entry_point="src.rlmcmc.env._env:RLMHEnvV71",
 )
@@ -97,6 +109,7 @@ register(
 __all__ = [
     "RLMHEnvBase",
     "RLMHEnvV300a1",
+    "RLMHEnvV301a11",
     "RLMHEnvV301a1",
     "RLMHEnvV31",
     "RLMHEnvV31A",
@@ -105,6 +118,7 @@ __all__ = [
     "RLMHEnvV6",
     "RLMHEnvV61",
     "RLMHEnvV7",
+    "RLMHEnvV701",
     "RLMHEnvV71",
     "RLMHEnvV8",
     "RLMHEnvV81",

@@ -691,6 +691,19 @@ class RLMHEnvV301a1(RLMHEnvBase):
 
         return self.observation, info
 
+class RLMHEnvV301a11(RLMHEnvV301a1):
+    def __init__(
+        self,
+        log_target_pdf: Callable[[NDArray[np.float64]], np.float64],
+        sample_dim: int = 2,
+        total_timesteps: int = 10_000,
+    ) -> None:
+        super().__init__(log_target_pdf, sample_dim, total_timesteps)
+
+        # Action specification with Bound
+        self.action_space = spaces.Box(
+            low=0.0, high=100.0, shape=(sample_dim << 1,), dtype=np.float64
+        )
 
 class RLMHEnvV301a2(RLMHEnvV301a1):
     def sigmoid(self, x: np.float64, k: float = 1.0) -> np.float64:
@@ -1572,6 +1585,21 @@ class RLMHEnvV7(RLMHEnvBase):
         }
 
         return self.observation, info
+
+
+class RLMHEnvV701(RLMHEnvV7):
+    def __init__(
+        self,
+        log_target_pdf: Callable[[NDArray[np.float64]], np.float64],
+        sample_dim: int = 2,
+        total_timesteps: int = 10_000,
+    ) -> None:
+        super().__init__(log_target_pdf, sample_dim, total_timesteps)
+
+        # Action specification
+        self.action_space = spaces.Box(
+            low=0.0, high=1000.0, shape=(sample_dim + 1,), dtype=np.float64
+        )
 
 
 class RLMHEnvV71(RLMHEnvV7):
