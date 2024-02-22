@@ -1,2 +1,0 @@
-# LearningAdaptiveMCMC
-LearningAdaptiveMCMC
