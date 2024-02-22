@@ -15,7 +15,9 @@ actPath = featureInputLayer(prod(actInfo.Dimension),Name="actInLyr");
 % Define common path: concatenate along first dimension
 commonPath = [
     concatenationLayer(1,2,Name="concat")
-    fullyConnectedLayer(50)
+    fullyConnectedLayer(32)
+    reluLayer
+    fullyConnectedLayer(32)
     reluLayer
     fullyConnectedLayer(1)
     ];
@@ -37,9 +39,9 @@ critic = rlQValueFunction(criticNet,obsInfo,actInfo,...
 % Create a network to be used as underlying actor approximator
 actorNet = [
     featureInputLayer(prod(obsInfo.Dimension))
-    fullyConnectedLayer(16)
+    fullyConnectedLayer(32)
     tanhLayer
-    fullyConnectedLayer(16)
+    fullyConnectedLayer(32)
     tanhLayer
     fullyConnectedLayer(prod(actInfo.Dimension))
     ];
@@ -61,19 +63,19 @@ agent.AgentOptions.ExperienceBufferLength=1e6;
 agent.AgentOptions.DiscountFactor=0.99;
 agent.AgentOptions.MiniBatchSize=32;
 
-agent.AgentOptions.CriticOptimizerOptions.LearnRate=5e-3;
+agent.AgentOptions.CriticOptimizerOptions.LearnRate=1e-5;
 agent.AgentOptions.CriticOptimizerOptions.GradientThreshold=1;
 
-agent.AgentOptions.ActorOptimizerOptions.LearnRate=1e-4;
+agent.AgentOptions.ActorOptimizerOptions.LearnRate=1e-5;
 agent.AgentOptions.ActorOptimizerOptions.GradientThreshold=1;
 
 %% Training Session
 trainOpts = rlTrainingOptions;
 
-trainOpts.MaxEpisodes = 10000;
-trainOpts.MaxStepsPerEpisode = 10;
+trainOpts.MaxEpisodes = 1e05;
+trainOpts.MaxStepsPerEpisode = 1;
 trainOpts.StopTrainingCriteria = "EpisodeCount";
-trainOpts.StopTrainingValue = 10000;
+trainOpts.StopTrainingValue = 1e05;
 trainOpts.ScoreAveragingWindowLength = 5;
 
 trainOpts.Verbose = true;
