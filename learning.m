@@ -8,10 +8,10 @@ obsInfo = getObservationInfo(env);
 actInfo = getActionInfo(env);
 
 % Define observation and action paths
-obsPath = featureInputLayer(prod(obsInfo.Dimension),Name="obsInLyr");
-actPath = featureInputLayer(prod(actInfo.Dimension),Name="actInLyr");
+obsPath = featureInputLayer(prod(obsInfo.Dimension), Name="obsInLyr");
+actPath = featureInputLayer(prod(actInfo.Dimension), Name="actInLyr");
 
-%% Set Critic 
+%% Set Critic
 % Define common path: concatenate along first dimension
 commonPath = [
     concatenationLayer(1,2,Name="concat")
@@ -39,11 +39,11 @@ critic = rlQValueFunction(criticNet,obsInfo,actInfo,...
 % Create a network to be used as underlying actor approximator
 actorNet = [
     featureInputLayer(prod(obsInfo.Dimension))
-    fullyConnectedLayer(32)
-    tanhLayer
-    fullyConnectedLayer(32)
-    tanhLayer
-    fullyConnectedLayer(prod(actInfo.Dimension))
+    TwinNetworkLayer( ...
+        'Name', 'twin_network_layer', ...
+        'input_nodes', bitshift(prod(obsInfo.Dimension), -1), ...
+        'hidden_nodes', 32, ...
+        'output_nodes', bitshift(prod(actInfo.Dimension), -1));
     ];
 
 % Convert to dlnetwork object
