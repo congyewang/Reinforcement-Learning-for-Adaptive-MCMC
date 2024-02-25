@@ -78,8 +78,8 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
             LogTargetProposed = this.logTargetPdf(ProposedSample);
 
             % Calculate Log Proposal Density
-            LogProposalCurrent = this.logProposalPdf(CurrentSample, ProposedSample, this.sigma);
-            LogProposalProposed = this.logProposalPdf(ProposedSample, CurrentSample, this.sigma);
+            LogProposalCurrent = this.logProposalPdf(CurrentSample, ProposedMean, this.sigma);
+            LogProposalProposed = this.logProposalPdf(ProposedSample, CurrentMean, this.sigma);
 
             % Calculate Log Acceptance Rate
             LogAlphaTemp = LogTargetProposed ...
