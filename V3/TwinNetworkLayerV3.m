@@ -1,4 +1,4 @@
-classdef TwinNetworkLayer < nnet.layer.Layer
+classdef TwinNetworkLayerV3 < nnet.layer.Layer
     %% Weights and Bias
     properties (Learnable)
         %{
@@ -8,10 +8,13 @@ classdef TwinNetworkLayer < nnet.layer.Layer
         If the structure of nn() is changed, the parameters used in nn that
         need to be optimised need to be declared here.
         %}
-        weights_input_hidden;
-        bias_hidden;
+        weights_input_hidden1;
+        bias_hidden1;
 
-        weights_hidden_output;
+        weights_hidden1_hidden2;
+        bias_hidden2;
+
+        weights_hidden2_output;
         bias_output;
 
         % alpha; % Only Used in prelu activation function
@@ -23,7 +26,7 @@ classdef TwinNetworkLayer < nnet.layer.Layer
         % using ~.
 
         %% Constructor Function
-        function layer = TwinNetworkLayer(args)
+        function layer = TwinNetworkLayerV3(args)
             %{
             This is a constructor function. This function is called first
             at the TwinNetworkLayer instantiate.
@@ -38,7 +41,8 @@ classdef TwinNetworkLayer < nnet.layer.Layer
                 args.input_nodes = 2;
                 % The number of the unit in the hidden layer. Generally a
                 % multiple of 2 or a power of 2.
-                args.hidden_nodes = 4;
+                args.hidden1_nodes = 4;
+                args.hidden2_nodes = 4;
                 % The number of the unit in the input layer , which should be equal to
                 % the dim of the action corresponding to x_n.
                 args.output_nodes = 2;
@@ -50,10 +54,13 @@ classdef TwinNetworkLayer < nnet.layer.Layer
             layer.Description = "Custom layer with two fully connected sublayers and ReLU activation";
 
             % Initial Weights and Bias
-            layer.weights_input_hidden = layer.xavier_uniform_init(args.input_nodes, args.hidden_nodes);
-            layer.bias_hidden = zeros(args.hidden_nodes, 1);
+            layer.weights_input_hidden1 = layer.xavier_uniform_init(args.input_nodes, args.hidden1_nodes);
+            layer.bias_hidden1 = zeros(args.hidden1_nodes, 1);
 
-            layer.weights_hidden_output = layer.xavier_uniform_init(args.hidden_nodes, args.output_nodes);
+            layer.weights_hidden1_hidden2 = layer.xavier_uniform_init(args.hidden1_nodes, args.hidden2_nodes);
+            layer.bias_hidden2 = zeros(args.hidden2_nodes, 1);
+
+            layer.weights_hidden2_output = layer.xavier_uniform_init(args.hidden2_nodes, args.output_nodes);
             layer.bias_output = zeros(args.output_nodes, 1);
 
             % Only Used in prelu activation function
@@ -519,9 +526,11 @@ classdef TwinNetworkLayer < nnet.layer.Layer
             Args:
                 X: input array.
             %}
-            X = layer.linear(X, layer.weights_input_hidden, layer.bias_hidden);
+            X = layer.linear(X, layer.weights_input_hidden1, layer.bias_hidden1);
             X = layer.relu(X);
-            X = layer.linear(X, layer.weights_hidden_output, layer.bias_output);
+            X = layer.linear(X, layer.weights_hidden1_hidden2, layer.bias_hidden2);
+            X = layer.relu(X);
+            X = layer.linear(X, layer.weights_hidden2_output, layer.bias_output);
             res = X;
         end
 

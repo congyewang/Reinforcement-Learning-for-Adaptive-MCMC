@@ -1,9 +1,8 @@
-classdef Gauss1DV8 < rl.env.MATLABEnvironment
+classdef Gauss1DV3 < rl.env.MATLABEnvironment
     properties
-        % Parameter
-        sigma = 1.0; % std of the proposal pdf
+        sigma = 1; % std of the proposal pdf
         % TotalTimeSteps = 10000; % total iteration
-        Reward = 0.0;
+        Reward = [];
         Ts = 1; % iteration time
 
         State = [0; randn]; % state at this time, s_{t}
@@ -21,7 +20,7 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
     end
 
     methods
-        function this = Gauss1DV8()
+        function this = Gauss1DV3()
             % Observation specification
             ObservationInfo = rlNumericSpec([2, 1]);
             ObservationInfo.Name = 'Obs';
@@ -39,47 +38,60 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
             % this.reset();
         end
 
-        function [res] = logTargetPdf(this, x, mu, sigma)
-            if nargin < 3
-                mu = 0;
-            end
-            if nargin < 4
-                sigma = 1;
-            end
+        function [logp] = logmvnpdf(this, x,mu,Sigma)
+            % outputs log likelihood array for observations x  where x_n ~ N(mu,Sigma)
+            % x is NxD, mu is 1xD, Sigma is DxD
+            [N,D] = size(x);
+            const = -0.5 * D * log(2*pi);
+            xc = bsxfun(@minus,x,mu);
+            term1 = -0.5 * sum((xc / Sigma) .* xc, 2); % N x 1
+            term2 = const - 0.5 * this.logdet(Sigma);    % scalar
+            logp = term1' + term2;
+        end
 
-            res = log(normpdf(x, mu, sigma));
+        function y = logdet(this, A)
+            U = chol(A);
+            y = 2*sum(log(diag(U)));
+        end
+
+        function [res] = logTargetPdf(this, x)
+            res = log( ...
+                0.25 * normpdf(x, -4, 1) ...
+                + 0.5 * normpdf(x, 0, 1) ...
+                + 0.25 * normpdf(x, 4, 1) ...
+                );
         end
 
         function [res] = logProposalPdf(this, x, mu, sigma)
-            res = log(normpdf(x, mu, sigma));
-        end
-
-        function [dist] = getDistance(this, current_sample, proposed_sample)
-            dist = norm(current_sample - proposed_sample, 2);
+            res = this.logmvnpdf(x, mu, sigma);
         end
 
         function [reward] = getReward(this, current_sample, proposed_sample, log_alpha)
-            reward = this.getDistance(current_sample, proposed_sample)^2 * exp(log_alpha);
+            reward = (1/2)*log(norm(current_sample - proposed_sample)) + log_alpha;
         end
 
         function [Observation, Reward, IsDone, Info] = step(this, Action)
             Info = [];
 
             % Unpack action
-            CurrentMean = Action(1);
-            ProposedMean = Action(2);
+            phi_x_n = Action(1);
+            phi_x_n_plus_1 = Action(2);
+
+            % Covariance Restore
+            cov_n = phi_x_n^2 * eye(1);
+            cov_n_plus_1 = phi_x_n_plus_1^2 * eye(1);
 
             % Unpack state
-            CurrentSample = this.State(1);
-            ProposedSample = this.State(2);
+            x_n = this.State(1);
+            x_n_plus_1 = this.State(2);
 
             % Calculate Log Target Density
-            LogTargetCurrent = this.logTargetPdf(CurrentSample);
-            LogTargetProposed = this.logTargetPdf(ProposedSample);
+            LogTargetCurrent = this.logTargetPdf(x_n);
+            LogTargetProposed = this.logTargetPdf(x_n_plus_1);
 
             % Calculate Log Proposal Density
-            LogProposalCurrent = this.logProposalPdf(CurrentSample, ProposedMean, this.sigma);
-            LogProposalProposed = this.logProposalPdf(ProposedSample, CurrentMean, this.sigma);
+            LogProposalCurrent = this.logProposalPdf(x_n, x_n_plus_1, cov_n_plus_1);
+            LogProposalProposed = this.logProposalPdf(x_n_plus_1, x_n, cov_n);
 
             % Calculate Log Acceptance Rate
             LogAlphaTemp = LogTargetProposed ...
@@ -101,25 +113,21 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
             % Accept or Reject
             if log(rand()) < LogAlpha
                 AcceptedStatus = true;
-                AcceptedSample = ProposedSample;
-                AcceptedMean = ProposedMean;
+                AcceptedSample = x_n_plus_1;
+                AcceptedCov = cov_n_plus_1;
             else
                 AcceptedStatus = false;
-                AcceptedSample = CurrentSample;
-                AcceptedMean = CurrentMean;
+                AcceptedSample = x_n;
+                AcceptedCov = cov_n;
             end
 
             % Update Observation
-            NextProposedSample = normrnd(AcceptedMean, this.sigma);
+            NextProposedSample = normrnd(AcceptedSample, sqrt(AcceptedCov));
             Observation = [AcceptedSample; NextProposedSample];
             this.State = Observation;
 
             % Calculate Reward
-            if isnan(LogAlphaTemp)
-                Reward = 0.0;
-            else
-                Reward = this.getReward(CurrentSample, ProposedSample, LogAlpha);
-            end
+            Reward = this.getReward(x_n, x_n_plus_1, LogAlpha);
 
             % Store
             this.StoreState{end+1} = Observation;

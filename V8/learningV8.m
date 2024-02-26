@@ -1,4 +1,4 @@
-clear;
+clear all;
 clc;
 rng(0);
 
@@ -7,80 +7,54 @@ env = Gauss1DV8;
 obsInfo = getObservationInfo(env);
 actInfo = getActionInfo(env);
 
+%% Set Critic
 % Define observation and action paths
 obsPath = featureInputLayer(prod(obsInfo.Dimension), Name="obsInLyr");
 actPath = featureInputLayer(prod(actInfo.Dimension), Name="actInLyr");
-
-%% Set Critic
 % Define common path: concatenate along first dimension
 commonPath = [
     concatenationLayer(1,2,Name="concat")
-    fullyConnectedLayer(32)
+    fullyConnectedLayer(8)
     reluLayer
-    fullyConnectedLayer(32)
-    reluLayer
+    % fullyConnectedLayer(8)
+    % reluLayer
     fullyConnectedLayer(1)
     ];
-
 % Add paths to layerGraph network
 criticNet = layerGraph(obsPath);
 criticNet = addLayers(criticNet, actPath);
 criticNet = addLayers(criticNet, commonPath);
-
 % Connect paths
 criticNet = connectLayers(criticNet,"obsInLyr","concat/in1");
 criticNet = connectLayers(criticNet,"actInLyr","concat/in2");
-
+% Create the critic
 critic = rlQValueFunction(criticNet,obsInfo,actInfo,...
-    ObservationInputNames="obsInLyr", ...
-    ActionInputNames="actInLyr");
+                          ObservationInputNames="obsInLyr", ...
+                          ActionInputNames="actInLyr");
 
 %% Set Actor
 % Create a network to be used as underlying actor approximator
 actorNet = [
     featureInputLayer(prod(obsInfo.Dimension))
-    TwinNetworkLayer( ...
+    TwinNetworkLayerV8( ...
         'Name', 'twin_network_layer', ...
         'input_nodes', bitshift(prod(obsInfo.Dimension), -1), ...
-        'hidden_nodes', 32, ...
+        'hidden1_nodes', 8, ...
+        'hidden2_nodes', 8, ...
         'output_nodes', bitshift(prod(actInfo.Dimension), -1));
     ];
-
 % Convert to dlnetwork object
 actorNet = dlnetwork(actorNet);
-
 % Display the number of weights
 summary(actorNet)
-
+% Create the actor
 actor = rlContinuousDeterministicActor(actorNet,obsInfo,actInfo);
-%% Set DDPG
 
+%% Set DDPG
 agent = rlDDPGAgent(actor,critic);
 
-agent.AgentOptions.SampleTime=env.Ts;
-agent.AgentOptions.TargetSmoothFactor=1e-3;
-agent.AgentOptions.ExperienceBufferLength=1e6;
-agent.AgentOptions.DiscountFactor=0.99;
-agent.AgentOptions.MiniBatchSize=32;
-
-agent.AgentOptions.CriticOptimizerOptions.LearnRate=1e-5;
-agent.AgentOptions.CriticOptimizerOptions.GradientThreshold=1;
-
-agent.AgentOptions.ActorOptimizerOptions.LearnRate=1e-5;
-agent.AgentOptions.ActorOptimizerOptions.GradientThreshold=1;
-
-%% Training Session
+%% Training 
 trainOpts = rlTrainingOptions;
-
-trainOpts.MaxEpisodes = 1e05;
-trainOpts.MaxStepsPerEpisode = 1;
-trainOpts.StopTrainingCriteria = "EpisodeCount";
-trainOpts.StopTrainingValue = 1e05;
-trainOpts.ScoreAveragingWindowLength = 5;
-
-trainOpts.Verbose = true;
-trainOpts.Plots = "training-progress";
-
 trainingInfo = train(agent,env,trainOpts);
 
 %% Plot Learning Trace
