@@ -1,4 +1,4 @@
-clear all;
+clear;
 clc;
 rng(0);
 

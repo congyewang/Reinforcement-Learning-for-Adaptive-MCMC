@@ -1,6 +1,7 @@
 classdef Gauss1DV9 < rl.env.MATLABEnvironment
     properties (Constant, Access = protected)
-        INF = 3e-324; % Minimum value of log non -inf
+        INF = 1.7977e+307; % 0.1 * inf in IEEE Double
+        NEG_LN_INF = log(3e-324); % The minimum double that log() can calculate
     end
 
     properties
@@ -92,19 +93,19 @@ classdef Gauss1DV9 < rl.env.MATLABEnvironment
         end
 
         function [res] = logTargetPdf(this, x)
-            % weight1 = 0.5;
-            % weight2 = 0.5;
-            % 
-            % % Calculate logpdf
-            % log_pdf1 = log(normpdf(x, -3, 1));
-            % log_pdf2 = log(normpdf(x, 3, 1));
-            % 
-            % % logpdf Plus Weights
-            % weighted_log_pdf1 = log(weight1) + log_pdf1;
-            % weighted_log_pdf2 = log(weight2) + log_pdf2;
-            % 
-            % res = this.logsumexp([weighted_log_pdf1, weighted_log_pdf2]);
-            res = this.logmvnpdf(x, 0, 1);
+            weight1 = 0.5;
+            weight2 = 0.5;
+
+            % Calculate logpdf
+            log_pdf1 = log(normpdf(x, -3, 1));
+            log_pdf2 = log(normpdf(x, 3, 1));
+
+            % logpdf Plus Weights
+            weighted_log_pdf1 = log(weight1) + log_pdf1;
+            weighted_log_pdf2 = log(weight2) + log_pdf2;
+
+            res = this.logsumexp([weighted_log_pdf1, weighted_log_pdf2]);
+            % res = this.logmvnpdf(x, 0, 1);
 
         end
 
@@ -114,12 +115,12 @@ classdef Gauss1DV9 < rl.env.MATLABEnvironment
 
         function [reward] = getReward(this, current_sample, proposed_sample, log_alpha)
             reward = (1/2)*log(norm(current_sample - proposed_sample)) + log_alpha;
-            if isnan(reward)
-                reward = -this.INF;
-            end
-            if isinf(proposed_sample)
-                reward = -this.INF;
-            end
+            % if isnan(reward)
+            %     reward = -this.INF;
+            % end
+            % if isinf(proposed_sample)
+            %     reward = -this.INF;
+            % end
         end
 
         function [Observation, Reward, IsDone, Info] = step(this, Action)
@@ -160,14 +161,14 @@ classdef Gauss1DV9 < rl.env.MATLABEnvironment
                 - LogTargetCurrent ...
                 + LogProposalCurrent ...
                 - LogProposalProposed;
-            if isnan(LogAlphaTemp)
-                LogAlpha = -this.INF;
-            else
+            % if isnan(LogAlphaTemp)
+            %     LogAlpha = -this.INF;
+            % else
                 LogAlpha = min( ...
                     0.0, ...
                     LogAlphaTemp ...
                     );
-            end
+            % end
 
             % Accept or Reject
             log_u = log(rand());
