@@ -115,10 +115,10 @@ classdef Gauss1DV9 < rl.env.MATLABEnvironment
         function [reward] = getReward(this, current_sample, proposed_sample, log_alpha)
             reward = (1/2)*log(norm(current_sample - proposed_sample)) + log_alpha;
             if isnan(reward)
-                reward = 0.0;
+                reward = -this.INF;
             end
             if isinf(proposed_sample)
-                reward = 0.0;
+                reward = -this.INF;
             end
         end
 
