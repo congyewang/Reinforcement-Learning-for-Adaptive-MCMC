@@ -1,10 +1,11 @@
-classdef Gauss1DV8 < rl.env.MATLABEnvironment
+classdef Gauss1DV33 < rl.env.MATLABEnvironment
     properties
         sigma = 1; % std of the proposal pdf
         % TotalTimeSteps = 10000; % total iteration
         Ts = 1; % iteration time
 
         State = [0; randn]; % state at this time, s_{t}
+        sample_dim = 1;
 
         % Store
         StoreState = {};
@@ -19,14 +20,14 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
     end
 
     methods
-        function this = Gauss1DV8()
+        function this = Gauss1DV33()
             % Observation specification
             ObservationInfo = rlNumericSpec([2, 1]);
             ObservationInfo.Name = 'Obs';
             ObservationInfo.Description = 's_{t} = [x_{t}; x^{*}_{t+1}]';
 
             % Action specification
-            ActionInfo = rlNumericSpec([2, 1]);
+            ActionInfo = rlNumericSpec([4, 1]);
             ActionInfo.Name = 'Act';
             ActionInfo.Description = 'a_{t} = [mean_{t}; mean^{*}_{t+1}]';
 
@@ -98,7 +99,6 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
             weighted_log_pdf2 = log(weight2) + log_pdf2;
 
             res = this.logsumexp([weighted_log_pdf1, weighted_log_pdf2]);
-            % res = this.logmvnpdf(x, 0, 1);
 
         end
 
@@ -114,24 +114,30 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
             Info = [];
 
             % Unpack action
-            phi_x_n = Action(1);
-            phi_x_n_plus_1 = Action(2);
+            phi_x_n = Action(1:this.sample_dim, :);
+            phi_x_n_plus_1 = Action(this.sample_dim+1:end, :);
+
+            low_rank_vector_n = phi_x_n(1:this.sample_dim, :);
+            magnification_n = phi_x_n(end, :);
+
+            low_rank_vector_n_plus_1 = phi_x_n_plus_1(1:this.sample_dim, :);
+            magnification_n_plus_1 = phi_x_n_plus_1(end, :);
+
+            % Covariance Restore
+            cov_n = low_rank_vector_n * low_rank_vector_n' + magnification_n^2 * eye(this.sample_dim);
+            cov_n_plus_1 = low_rank_vector_n_plus_1 * low_rank_vector_n_plus_1' + magnification_n_plus_1^2 * eye(this.sample_dim);
 
             % Unpack state
-            x_n = this.State(1);
-            x_n_plus_1 = this.State(2);
-
-            % Restore Mean
-            mean_n = x_n + phi_x_n;
-            mean_n_plus_1 = x_n_plus_1 + phi_x_n_plus_1;
+            x_n = this.State(1:this.sample_dim, :);
+            x_n_plus_1 = this.State(this.sample_dim+1:end, :);
 
             % Calculate Log Target Density
             LogTargetCurrent = this.logTargetPdf(x_n);
             LogTargetProposed = this.logTargetPdf(x_n_plus_1);
 
             % Calculate Log Proposal Density
-            LogProposalCurrent = this.logProposalPdf(x_n, mean_n_plus_1, this.sigma);
-            LogProposalProposed = this.logProposalPdf(x_n_plus_1, mean_n, this.sigma);
+            LogProposalCurrent = this.logProposalPdf(x_n, x_n_plus_1, cov_n_plus_1);
+            LogProposalProposed = this.logProposalPdf(x_n_plus_1, x_n, cov_n);
 
             % Calculate Log Acceptance Rate
             LogAlphaTemp = LogTargetProposed ...
@@ -154,20 +160,41 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
             if log(rand()) < LogAlpha
                 AcceptedStatus = true;
                 AcceptedSample = x_n_plus_1;
-                AcceptedMean = mean_n_plus_1;
+                AcceptedCov = cov_n_plus_1;
             else
                 AcceptedStatus = false;
                 AcceptedSample = x_n;
-                AcceptedMean = mean_n;
+                AcceptedCov = cov_n;
             end
 
             % Update Observation
-            NextProposedSample = normrnd(AcceptedMean, this.sigma);
+            NextProposedSample = normrnd(AcceptedSample, sqrt(AcceptedCov));
             Observation = [AcceptedSample; NextProposedSample];
             this.State = Observation;
 
             % Calculate Reward
             Reward = this.getReward(x_n, x_n_plus_1, LogAlpha);
+            if isinf(Reward)
+                disp("x_n");
+                disp(x_n);
+                disp("cov_n");
+                disp(cov_n);
+                disp("x_n_plus_1");
+                disp(x_n_plus_1);
+                disp("cov_n_plus_1");
+                disp(cov_n_plus_1);
+                disp("LogAlpha");
+                disp(LogAlpha);
+                disp("LogTargetProposed");
+                disp(LogTargetProposed);
+                disp("LogTargetCurrent");
+                disp(LogTargetCurrent);
+                disp("LogProposalCurrent");
+                disp(LogProposalCurrent);
+                disp("LogProposalProposed");
+                disp(LogProposalProposed);
+
+            end
 
             % Store
             this.StoreState{end+1} = Observation;

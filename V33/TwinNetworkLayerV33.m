@@ -1,4 +1,4 @@
-classdef TwinNetworkLayerV8 < nnet.layer.Layer
+classdef TwinNetworkLayerV33 < nnet.layer.Layer
     %% Weights and Bias
     properties (Learnable)
         %{
@@ -26,7 +26,7 @@ classdef TwinNetworkLayerV8 < nnet.layer.Layer
         % using ~.
 
         %% Constructor Function
-        function layer = TwinNetworkLayerV8(args)
+        function layer = TwinNetworkLayerV33(args)
             %{
             This is a constructor function. This function is called first
             at the TwinNetworkLayer instantiate.
@@ -41,8 +41,8 @@ classdef TwinNetworkLayerV8 < nnet.layer.Layer
                 args.input_nodes = 2;
                 % The number of the unit in the hidden layer. Generally a
                 % multiple of 2 or a power of 2.
-                args.hidden1_nodes = 8;
-                args.hidden2_nodes = 8;
+                args.hidden1_nodes = 4;
+                args.hidden2_nodes = 4;
                 % The number of the unit in the input layer , which should be equal to
                 % the dim of the action corresponding to x_n.
                 args.output_nodes = 2;
@@ -547,9 +547,10 @@ classdef TwinNetworkLayerV8 < nnet.layer.Layer
             obs_size = size(observation);
             % To keep the sample_dim as a integers, use Shift bits
             % operation. Equivalent to sample_dim = obs_size / 2.
-            sample_dim = bitshift(obs_size, -1);
+            sample_dim = bitshift(obs_size(1), -1);
 
             x_n = observation(1:sample_dim, :);
+
             x_n_plus_1_star = observation(sample_dim+1:end, :);
 
             a_n = layer.nn(x_n);

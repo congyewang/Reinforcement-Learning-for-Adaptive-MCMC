@@ -1,10 +1,16 @@
-classdef Gauss1DV8 < rl.env.MATLABEnvironment
+classdef Gauss1DV9 < rl.env.MATLABEnvironment
+    properties (Constant, Access = protected)
+        INF = 3e-324; % Minimum value of log non -inf
+    end
+
     properties
         sigma = 1; % std of the proposal pdf
         % TotalTimeSteps = 10000; % total iteration
         Ts = 1; % iteration time
 
         State = [0; randn]; % state at this time, s_{t}
+
+        sample_dim = 1;
 
         % Store
         StoreState = {};
@@ -19,14 +25,14 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
     end
 
     methods
-        function this = Gauss1DV8()
+        function this = Gauss1DV9()
             % Observation specification
             ObservationInfo = rlNumericSpec([2, 1]);
             ObservationInfo.Name = 'Obs';
             ObservationInfo.Description = 's_{t} = [x_{t}; x^{*}_{t+1}]';
 
             % Action specification
-            ActionInfo = rlNumericSpec([2, 1]);
+            ActionInfo = rlNumericSpec([4, 1]);
             ActionInfo.Name = 'Act';
             ActionInfo.Description = 'a_{t} = [mean_{t}; mean^{*}_{t+1}]';
 
@@ -86,19 +92,19 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
         end
 
         function [res] = logTargetPdf(this, x)
-            weight1 = 0.5;
-            weight2 = 0.5;
-
-            % Calculate logpdf
-            log_pdf1 = log(normpdf(x, -3, 1));
-            log_pdf2 = log(normpdf(x, 3, 1));
-
-            % logpdf Plus Weights
-            weighted_log_pdf1 = log(weight1) + log_pdf1;
-            weighted_log_pdf2 = log(weight2) + log_pdf2;
-
-            res = this.logsumexp([weighted_log_pdf1, weighted_log_pdf2]);
-            % res = this.logmvnpdf(x, 0, 1);
+            % weight1 = 0.5;
+            % weight2 = 0.5;
+            % 
+            % % Calculate logpdf
+            % log_pdf1 = log(normpdf(x, -3, 1));
+            % log_pdf2 = log(normpdf(x, 3, 1));
+            % 
+            % % logpdf Plus Weights
+            % weighted_log_pdf1 = log(weight1) + log_pdf1;
+            % weighted_log_pdf2 = log(weight2) + log_pdf2;
+            % 
+            % res = this.logsumexp([weighted_log_pdf1, weighted_log_pdf2]);
+            res = this.logmvnpdf(x, 0, 1);
 
         end
 
@@ -108,30 +114,46 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
 
         function [reward] = getReward(this, current_sample, proposed_sample, log_alpha)
             reward = (1/2)*log(norm(current_sample - proposed_sample)) + log_alpha;
+            if isnan(reward)
+                reward = 0.0;
+            end
+            if isinf(proposed_sample)
+                reward = 0.0;
+            end
         end
 
         function [Observation, Reward, IsDone, Info] = step(this, Action)
             Info = [];
 
             % Unpack action
-            phi_x_n = Action(1);
-            phi_x_n_plus_1 = Action(2);
+            phi_x_n = Action(1:this.sample_dim+1,:);
+            phi_x_n_plus_1 = Action(this.sample_dim+2:end,:);
+
+            mean_phi_x_n = phi_x_n(1:this.sample_dim,:);
+            mean_phi_x_n_plus_1 = phi_x_n_plus_1(this.sample_dim+1:end,:);
+
+            std_phi_x_n = phi_x_n(end,:);
+            std_phi_x_n_plus_1 = phi_x_n_plus_1(end,:);
 
             % Unpack state
             x_n = this.State(1);
             x_n_plus_1 = this.State(2);
 
             % Restore Mean
-            mean_n = x_n + phi_x_n;
-            mean_n_plus_1 = x_n_plus_1 + phi_x_n_plus_1;
+            mean_n = x_n + mean_phi_x_n;
+            mean_n_plus_1 = x_n_plus_1 + mean_phi_x_n_plus_1;
+
+            % Restore Cov
+            cov_n = std_phi_x_n^2 * eye(this.sample_dim);
+            cov_n_plus_1 = std_phi_x_n_plus_1^2 * eye(this.sample_dim);
 
             % Calculate Log Target Density
             LogTargetCurrent = this.logTargetPdf(x_n);
             LogTargetProposed = this.logTargetPdf(x_n_plus_1);
 
             % Calculate Log Proposal Density
-            LogProposalCurrent = this.logProposalPdf(x_n, mean_n_plus_1, this.sigma);
-            LogProposalProposed = this.logProposalPdf(x_n_plus_1, mean_n, this.sigma);
+            LogProposalCurrent = this.logProposalPdf(x_n, mean_n_plus_1, cov_n);
+            LogProposalProposed = this.logProposalPdf(x_n_plus_1, mean_n, cov_n_plus_1);
 
             % Calculate Log Acceptance Rate
             LogAlphaTemp = LogTargetProposed ...
@@ -139,35 +161,70 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
                 + LogProposalCurrent ...
                 - LogProposalProposed;
             if isnan(LogAlphaTemp)
-                LogAlpha = -inf;
+                LogAlpha = -this.INF;
             else
                 LogAlpha = min( ...
                     0.0, ...
-                    LogTargetProposed ...
-                    - LogTargetCurrent ...
-                    + LogProposalCurrent ...
-                    - LogProposalProposed ...
+                    LogAlphaTemp ...
                     );
             end
 
             % Accept or Reject
-            if log(rand()) < LogAlpha
+            log_u = log(rand());
+            if log_u < LogAlpha
                 AcceptedStatus = true;
                 AcceptedSample = x_n_plus_1;
                 AcceptedMean = mean_n_plus_1;
+                AcceptedCov = cov_n_plus_1;
             else
                 AcceptedStatus = false;
                 AcceptedSample = x_n;
                 AcceptedMean = mean_n;
+                AcceptedCov = cov_n;
             end
 
             % Update Observation
-            NextProposedSample = normrnd(AcceptedMean, this.sigma);
+            % NextProposedSample = mvnrnd(AcceptedMean, AcceptedCov);
+            NextProposedSample = normrnd(AcceptedMean, sqrt(AcceptedCov));
             Observation = [AcceptedSample; NextProposedSample];
             this.State = Observation;
 
             % Calculate Reward
             Reward = this.getReward(x_n, x_n_plus_1, LogAlpha);
+
+            if isinf(Reward) || isnan(Reward)
+                fprintf("No. %d\n" + ...
+                    "Reward: %f\n" + ...
+                    "x_n: %f\n" + ...
+                    "mean_n: %f\n" + ...
+                    "cov_n: %f\n" + ...
+                    "x_n_plus_1: %f\n" + ...
+                    "mean_n_plus_1: %f\n" + ...
+                    "cov_n_plus_1: %f\n" + ...
+                    "LogAlphaTemp: %f\n" + ...
+                    "LogTargetProposed: %f\n" + ...
+                    "LogTargetCurrent: %f\n" + ...
+                    "LogProposalCurrent: %f\n" + ...
+                    "LogProposalProposed: %f\n" + ...
+                    "LogAlpha: %f\n" + ...
+                    "log_u: %f\n", ...
+                    this.Ts, ...
+                    Reward, ...
+                    x_n, ...
+                    mean_n, ...
+                    cov_n, ...
+                    x_n_plus_1, ...
+                    mean_n_plus_1, ...
+                    cov_n_plus_1, ...
+                    LogAlphaTemp, ...
+                    LogTargetProposed, ...
+                    LogTargetCurrent, ...
+                    LogProposalCurrent, ...
+                    LogProposalProposed, ...
+                    LogAlpha, ...
+                    log_u ...
+                    );
+            end
 
             % Store
             this.StoreState{end+1} = Observation;
@@ -189,5 +246,6 @@ classdef Gauss1DV8 < rl.env.MATLABEnvironment
         function InitialObservation = reset(this)
             InitialObservation = this.State;
         end
+
     end
 end

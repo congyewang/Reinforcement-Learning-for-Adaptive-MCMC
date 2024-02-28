@@ -3,7 +3,7 @@ clc;
 rng(0);
 
 %% Set Env
-env = Gauss1DV8;
+env = Gauss1DV9;
 obsInfo = getObservationInfo(env);
 actInfo = getActionInfo(env);
 
@@ -34,13 +34,14 @@ critic = rlQValueFunction(criticNet,obsInfo,actInfo,...
 % Create a network to be used as underlying actor approximator
 actorNet = [
     featureInputLayer(prod(obsInfo.Dimension))
-    TwinNetworkLayerV8( ...
+    TwinNetworkLayerV9( ...
         'Name', 'twin_network_layer', ...
         'input_nodes', bitshift(prod(obsInfo.Dimension), -1), ...
         'hidden1_nodes', 8, ...
         'hidden2_nodes', 8, ...
         'output_nodes', bitshift(prod(actInfo.Dimension), -1));
     ];
+
 % Convert to dlnetwork object
 actorNet = dlnetwork(actorNet);
 % Display the number of weights
@@ -71,3 +72,28 @@ title('Immediate Reward Plot');
 figure;
 plot(cumsum(cell2mat(env.StoreReward)));
 title('Cumulative Reward Plot');
+
+%% Local Function
+% Policy Plot
+function [] = policy_plot()
+
+current_sample = -10:.1:10;
+[~, len] = size(current_sample);
+proposed_sample = zeros(1, len);
+grid_sample = [current_sample; proposed_sample]';
+
+store_action = zeros(len, 4);
+
+for i = 1:len
+    store_action(i,:) = evaluatePolicy(grid_sample(i,:));
+end
+
+figure;
+plot(current_sample, store_action(:,1));
+hold on;
+plot(current_sample, store_action(:,2));
+hold off;
+legend("mean", "std")
+title('Policy Plot');
+
+end

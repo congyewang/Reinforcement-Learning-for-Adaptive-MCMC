@@ -54,12 +54,53 @@ classdef Gauss1DV3 < rl.env.MATLABEnvironment
             y = 2*sum(log(diag(U)));
         end
 
+        function [lse,sm] = logsumexp(this, x)
+            %LOGSUMEXP  Log-sum-exp function.
+            %    lse = LOGSUMEXP(x) returns the log-sum-exp function evaluated at
+            %    the vector x, defined by lse = log(sum(exp(x)).
+            %    [lse,sm] = LOGSUMEXP(x) also returns the softmax function evaluated
+            %    at x, defined by sm = exp(x)/sum(exp(x)).
+            %    The functions are computed in a way that avoids overflow and
+            %    optimizes numerical stability.
+
+            %    Reference:
+            %    P. Blanchard, D. J. Higham, and N. J. Higham.
+            %    Accurately computing the log-sum-exp and softmax functions.
+            %    IMA J. Numer. Anal., Advance access, 2020.
+
+            if ~isvector(x), error('Input x must be a vector.'), end
+
+            n = length(x);
+            s = 0; e = zeros(n,1);
+            [xmax,k] = max(x); a = xmax;
+            s = 0;
+            for i = 1:n
+                e(i) = exp(x(i)-xmax);
+                if i ~= k
+                    s = s + e(i);
+                end
+            end
+            lse = a + log1p(s);
+            if nargout > 1
+                sm = e/(1+s);
+            end
+        end
+
         function [res] = logTargetPdf(this, x)
-            res = log( ...
-                0.25 * normpdf(x, -4, 1) ...
-                + 0.5 * normpdf(x, 0, 1) ...
-                + 0.25 * normpdf(x, 4, 1) ...
-                );
+            weight1 = 0.5;
+            weight2 = 0.5;
+
+            % Calculate logpdf
+            log_pdf1 = log(normpdf(x, -3, 1));
+            log_pdf2 = log(normpdf(x, 3, 1));
+
+            % logpdf Plus Weights
+            weighted_log_pdf1 = log(weight1) + log_pdf1;
+            weighted_log_pdf2 = log(weight2) + log_pdf2;
+
+            res = this.logsumexp([weighted_log_pdf1, weighted_log_pdf2]);
+            % res = this.logmvnpdf(x, 0, 1);
+
         end
 
         function [res] = logProposalPdf(this, x, mu, sigma)

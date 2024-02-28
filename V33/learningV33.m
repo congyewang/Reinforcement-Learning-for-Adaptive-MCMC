@@ -3,9 +3,10 @@ clc;
 rng(0);
 
 %% Set Env
-env = Gauss1DV8;
+env = Gauss1DV33;
 obsInfo = getObservationInfo(env);
 actInfo = getActionInfo(env);
+sample_dim = bitshift(prod(obsInfo.Dimension), -1);
 
 %% Set Critic
 % Define observation and action paths
@@ -27,19 +28,19 @@ criticNet = connectLayers(criticNet,"obsInLyr","concat/in1");
 criticNet = connectLayers(criticNet,"actInLyr","concat/in2");
 % Create the critic
 critic = rlQValueFunction(criticNet,obsInfo,actInfo,...
-                          ObservationInputNames="obsInLyr", ...
-                          ActionInputNames="actInLyr");
+    ObservationInputNames="obsInLyr", ...
+    ActionInputNames="actInLyr");
 
 %% Set Actor
 % Create a network to be used as underlying actor approximator
 actorNet = [
     featureInputLayer(prod(obsInfo.Dimension))
-    TwinNetworkLayerV8( ...
-        'Name', 'twin_network_layer', ...
-        'input_nodes', bitshift(prod(obsInfo.Dimension), -1), ...
-        'hidden1_nodes', 8, ...
-        'hidden2_nodes', 8, ...
-        'output_nodes', bitshift(prod(actInfo.Dimension), -1));
+    TwinNetworkLayerV33( ...
+    'Name', 'twin_network_layer', ...
+    'input_nodes', sample_dim, ...
+    'hidden1_nodes', 8, ...
+    'hidden2_nodes', 8, ...
+    'output_nodes', sample_dim + 1)
     ];
 % Convert to dlnetwork object
 actorNet = dlnetwork(actorNet);
@@ -51,9 +52,8 @@ actor = rlContinuousDeterministicActor(actorNet,obsInfo,actInfo);
 %% Set DDPG
 agent = rlDDPGAgent(actor,critic);
 
-%% Training 
+%% Training
 trainOpts = rlTrainingOptions;
-% trainOpts.MaxStepsPerEpisode = 10;
 trainingInfo = train(agent,env,trainOpts);
 
 %% Plot Learning Trace

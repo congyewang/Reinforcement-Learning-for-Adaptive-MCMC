@@ -1,4 +1,4 @@
-classdef TwinNetworkLayerV8 < nnet.layer.Layer
+classdef TwinNetworkLayerV9 < nnet.layer.Layer
     %% Weights and Bias
     properties (Learnable)
         %{
@@ -26,7 +26,7 @@ classdef TwinNetworkLayerV8 < nnet.layer.Layer
         % using ~.
 
         %% Constructor Function
-        function layer = TwinNetworkLayerV8(args)
+        function layer = TwinNetworkLayerV9(args)
             %{
             This is a constructor function. This function is called first
             at the TwinNetworkLayer instantiate.
@@ -38,7 +38,7 @@ classdef TwinNetworkLayerV8 < nnet.layer.Layer
                 args.Name = "";
                 % The number of the unit in the input layer , which should be equal to
                 % the dim of the sample, x_n.
-                args.input_nodes = 2;
+                args.input_nodes = 1;
                 % The number of the unit in the hidden layer. Generally a
                 % multiple of 2 or a power of 2.
                 args.hidden1_nodes = 8;

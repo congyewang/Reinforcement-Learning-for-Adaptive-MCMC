@@ -11,8 +11,8 @@ classdef TwinNetworkLayerV3 < nnet.layer.Layer
         weights_input_hidden1;
         bias_hidden1;
 
-        weights_hidden1_hidden2;
-        bias_hidden2;
+        % weights_hidden1_hidden2;
+        % bias_hidden2;
 
         weights_hidden2_output;
         bias_output;
@@ -57,8 +57,8 @@ classdef TwinNetworkLayerV3 < nnet.layer.Layer
             layer.weights_input_hidden1 = layer.xavier_uniform_init(args.input_nodes, args.hidden1_nodes);
             layer.bias_hidden1 = zeros(args.hidden1_nodes, 1);
 
-            layer.weights_hidden1_hidden2 = layer.xavier_uniform_init(args.hidden1_nodes, args.hidden2_nodes);
-            layer.bias_hidden2 = zeros(args.hidden2_nodes, 1);
+            % layer.weights_hidden1_hidden2 = layer.xavier_uniform_init(args.hidden1_nodes, args.hidden2_nodes);
+            % layer.bias_hidden2 = zeros(args.hidden2_nodes, 1);
 
             layer.weights_hidden2_output = layer.xavier_uniform_init(args.hidden2_nodes, args.output_nodes);
             layer.bias_output = zeros(args.output_nodes, 1);
@@ -528,8 +528,8 @@ classdef TwinNetworkLayerV3 < nnet.layer.Layer
             %}
             X = layer.linear(X, layer.weights_input_hidden1, layer.bias_hidden1);
             X = layer.relu(X);
-            X = layer.linear(X, layer.weights_hidden1_hidden2, layer.bias_hidden2);
-            X = layer.relu(X);
+            % X = layer.linear(X, layer.weights_hidden1_hidden2, layer.bias_hidden2);
+            % X = layer.relu(X);
             X = layer.linear(X, layer.weights_hidden2_output, layer.bias_output);
             res = X;
         end
