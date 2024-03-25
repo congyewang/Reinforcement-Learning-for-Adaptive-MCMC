@@ -2,6 +2,13 @@ clearvars;
 clc;
 rng(0);
 
+%% Add Packages
+addpath("../actor")
+addpath("../agent")
+addpath("../env")
+addpath("../target")
+addpath("../utils")
+
 %% Set Env
 env = RLMHEnvV11(@mixture_gaussian_target, 2);
 
