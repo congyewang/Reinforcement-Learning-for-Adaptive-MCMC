@@ -58,9 +58,8 @@ def output_gs_name(dbpath: str = "posteriordb/posterior_database") -> List[str]:
     return gs_models
 
 
-def extract_trails(model_name: str) -> None:
+def extract_trails(model_name: str, pdb_path: str = "posteriordb/posterior_database") -> None:
     share_name = model_name.replace("-", "_")
-    pdb_path = "./posteriordb/posterior_database"
     my_pdb = PosteriorDatabase(pdb_path)
     posterior = my_pdb.posterior(model_name)
 

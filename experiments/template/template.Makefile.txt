@@ -12,3 +12,15 @@ share: $(MODEL)_share.c ./lib$(MODEL)_model.so
 	$(CC) -c -fPIC -I $(SRC) $(MODEL)_share.c -o $(MODEL)_share.o
 	$(LINK.c) -shared -o lib$(MODEL).so $(MODEL)_share.o -Wl,-rpath . -L . -l$(MODEL)_model
 	$(RM) $(MODEL)_share.o
+
+%_model.a: %.hpp $(BRIDGE_O) $(LIBSUNDIALS) $(MPI_TARGETS) $(TBB_TARGETS)
+	@echo '--- Compiling C++ code ---'
+	$(COMPILE.cpp) -x c++ -o $(subst  \,/,$*).o $(subst \,/,$<)
+	@echo '--- Creating static library ---'
+	$(AR) -rcs $(patsubst %.hpp, %_model.a, $(subst \,/,$<)) $(subst \,/,$*.o) $(BRIDGE_O)
+	$(RM) $(subst  \,/,$*).o
+
+share_static: $(MODEL)_share.c ./$(MODEL)_model.a
+	$(CC) -fPIC -c -I $(SRC) $(MODEL)_share.c -o $(MODEL)_share.o
+	$(LINK.cpp) -shared -o lib$(MODEL).so $(MODEL)_share.o $(MODEL)_model.a $(LDLIBS) $(LIBSUNDIALS) $(MPI_TARGETS) $(TBB_TARGETS)
+	$(RM) $(MODEL)_share.o

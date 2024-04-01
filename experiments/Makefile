@@ -1,10 +1,10 @@
 SUBDIRS := $(wildcard trails/*/)
 
-share: $(SUBDIRS)
+share_static: $(SUBDIRS)
 
-default: share
+default: share_static
 
 $(SUBDIRS):
-	$(MAKE) -C $@ share
+	$(MAKE) -C $@ share_static
 
-.PHONY: share $(SUBDIRS)
+.PHONY: share_static $(SUBDIRS)
