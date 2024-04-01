@@ -3,3 +3,5 @@
 #include <math.h>
 
 int matlab_log_density_gradient(const double *theta_unc, double *val, double *grad);
+
+int matlab_param_num(int *param_num);
