@@ -1,0 +1,14 @@
+# Tell the top-level makefile which relative path to use
+BS_ROOT=../../bridgestan/bridgestan-2.4.0
+include ../../bridgestan/bridgestan-2.4.0/Makefile
+
+MODEL?={{ model_name }}
+CC ?= gcc
+
+./lib$(MODEL)_model.so: ./$(MODEL)_model.so
+	cp ./$(MODEL)_model.so ./lib$(MODEL)_model.so
+
+share: $(MODEL)_share.c ./lib$(MODEL)_model.so
+	$(CC) -c -fPIC -I $(SRC) $(MODEL)_share.c -o $(MODEL)_share.o
+	$(LINK.c) -shared -o lib$(MODEL).so $(MODEL)_share.o -Wl,-rpath . -L . -l$(MODEL)_model
+	$(RM) $(MODEL)_share.o

@@ -1,0 +1,3 @@
+[submodule "experiments/posteriordb"]
+	path = experiments/posteriordb
+	url = https://github.com/congyewang/posteriordb.git
