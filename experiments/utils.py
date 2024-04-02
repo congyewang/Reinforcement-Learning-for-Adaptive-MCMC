@@ -79,13 +79,13 @@ def extract_trails(model_name: str, pdb_path: str = "posteriordb/posterior_datab
         f.write(json.dumps(posterior.data.values()))
 
     # Generate C Code
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
-    c_temp = env.get_template("template.c")
-    c_temp_out = c_temp.render(data_path=f"./{share_name}.json")
-    with open(os.path.join(destination_dir, f"{share_name}_share.c"), "w") as f:
-        f.write(c_temp_out)
+    shutil.copy(
+        os.path.join("./template", "template.c"),
+        os.path.join(destination_dir, f"{share_name}_share.c"),
+    )
 
     # Generate Makefile
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
     makefile_temp = env.get_template("template.Makefile.txt")
     makefile_temp_out = makefile_temp.render(model_name=share_name)
     with open(os.path.join(destination_dir, f"Makefile"), "w") as f:

@@ -3,8 +3,7 @@
 #include <math.h>
 
 
-int matlab_log_density_gradient(const double *theta_unc, double *val, double *grad) {
-  char *data = "{{ data_path }}";
+int matlab_log_density_gradient(const char* data, const double *theta_unc, double *val, double *grad) {
   char *err_model;
   int random_seed = 0;
   bs_model *model;
@@ -14,16 +13,18 @@ int matlab_log_density_gradient(const double *theta_unc, double *val, double *gr
   int status;
 
   model = bs_model_construct(data, random_seed, &err_model);
-  status = bs_log_density_gradient(model, propto, jacobian, theta_unc, val, grad, &err_msg);
-
-  if (err_model) {
-    printf("Error Model: %s\n", err_model);
-    bs_free_error_msg(err_model);
+  if (!model) {
+      if (err_model) {
+          printf("Error: %s\n", err_model);
+          bs_free_error_msg(err_model);
+      }
+      return -1;
   }
 
+  status = bs_log_density_gradient(model, propto, jacobian, theta_unc, val, grad, &err_msg);
   if (err_msg) {
-    printf("Error MSG: %s\n", err_msg);
-    bs_free_error_msg(err_msg);
+      printf("Error: %s\n", err_msg);
+      bs_free_error_msg(err_msg);
   }
 
   bs_model_destruct(model);
@@ -31,8 +32,7 @@ int matlab_log_density_gradient(const double *theta_unc, double *val, double *gr
   return 0;
 }
 
-int matlab_param_num(int *param_num) {
-  char *data = "{{ data_path }}";
+int matlab_param_num(const char* data, int *param_num) {
   char *err_model;
   int random_seed = 0;
   bs_model *model;
@@ -41,13 +41,12 @@ int matlab_param_num(int *param_num) {
   bool include_gq = true;
 
   model = bs_model_construct(data, random_seed, &err_model);
-
-  if (model == NULL || err_model != NULL) {
-    if (err_model) {
-      printf("Error Model: %s\n", err_model);
-      bs_free_error_msg(err_model);
-    }
-    return -1;
+  if (!model) {
+      if (err_model) {
+          printf("Error: %s\n", err_model);
+          bs_free_error_msg(err_model);
+      }
+      return -1;
   }
 
   *param_num = bs_param_num(model, include_tp, include_gq);
