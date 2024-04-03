@@ -17,6 +17,9 @@ for i = 1:length(total_model_name)
 
 end
 
-sucess_model_table = table(sucess_model_name', sucess_model_sample_dim');
+name = sucess_model_name';
+dim = sucess_model_sample_dim';
+
+sucess_model_table = table(name, dim);
 
 end
