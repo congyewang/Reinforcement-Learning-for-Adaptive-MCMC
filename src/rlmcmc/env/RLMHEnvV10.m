@@ -50,6 +50,7 @@ classdef RLMHEnvV10 < RLMHEnvBase
 
             % Store
             this.store_observation{end+1} = observation;
+            this.store_action{end+1} = action;
 
             % Calculate Reward
             reward = this.reward_function(current_sample, proposed_sample, log_alpha);

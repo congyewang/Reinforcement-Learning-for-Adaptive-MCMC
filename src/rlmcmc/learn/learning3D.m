@@ -1,6 +1,6 @@
 clearvars;
 clc;
-rng(0);
+rng(1234);
 
 %% Add Packages
 % addpath("../actor")
@@ -10,8 +10,9 @@ rng(0);
 % addpath("../utils")
 
 %% Set Env
-sample_dim = 2;
-env = RLMHEnvV11(@log_target_pdf, sample_dim);
+sample_dim = 3;
+covariance = 2.38 * diag([0.03850445835832558, 8.556912195063501e-06, 6.330573874886414e-05]);
+env = RLMHEnvV9(@log_target_pdf, sample_dim, covariance);
 
 obsInfo = getObservationInfo(env);
 actInfo = getActionInfo(env);
@@ -41,22 +42,22 @@ critic = rlQValueFunction(criticNet,obsInfo,actInfo,...
 
 %% Set Actor
 % Create a network to be used as underlying actor approximator
-% actorNet = [
-%     featureInputLayer(prod(obsInfo.Dimension))
-%     TwinNetworkLayer( ...
-%         'Name', 'twin_network_layer', ...
-%         'input_nodes', bitshift(prod(obsInfo.Dimension), -1), ...
-%         'hidden_nodes', 8, ...
-%         'output_nodes', bitshift(prod(actInfo.Dimension), -1));
-%     ];
 actorNet = [
     featureInputLayer(prod(obsInfo.Dimension))
-    TwinNetworkLayerConstVar( ...
+    TwinNetworkLayer( ...
         'Name', 'twin_network_layer', ...
         'input_nodes', bitshift(prod(obsInfo.Dimension), -1), ...
         'hidden_nodes', 16, ...
         'output_nodes', bitshift(prod(actInfo.Dimension), -1));
     ];
+% actorNet = [
+%     featureInputLayer(prod(obsInfo.Dimension))
+%     TwinNetworkLayerConstVar( ...
+%         'Name', 'twin_network_layer', ...
+%         'input_nodes', bitshift(prod(obsInfo.Dimension), -1), ...
+%         'hidden_nodes', 16, ...
+%         'output_nodes', bitshift(prod(actInfo.Dimension), -1));
+%     ];
 
 % Convert to dlnetwork object
 actorNet = dlnetwork(actorNet);
@@ -69,7 +70,9 @@ actor = rlContinuousDeterministicActor(actorNet,obsInfo,actInfo);
 agent = rlDDPGAgent(actor,critic);
 agent.AgentOptions.ExperienceBufferLength=1e6;
 agent.AgentOptions.NoiseOptions.StandardDeviation = zeros(actInfo.Dimension);
+% agent.AgentOptions.CriticOptimizerOptions.L2RegularizationFactor=1e-2;
 agent.AgentOptions.CriticOptimizerOptions.GradientThreshold=1;
+agent.AgentOptions.ActorOptimizerOptions.L2RegularizationFactor=1e-2;
 agent.AgentOptions.ActorOptimizerOptions.GradientThreshold=1e-8;
 
 %% Training
@@ -88,17 +91,17 @@ trainingInfo = train(agent,env,trainOpts);
 trace_plot(env);
 
 %% Plot Policy
-figure()
-plot_max = 3;
-for i = 1:plot_max
-    subplot(1,plot_max,i)
-    n = trainOpts.MaxEpisodes - i + 1;
-    load_agent = load(['savedAgents/Agent',num2str(n,'%u'),'.mat']);
-    generatePolicyFunction(load_agent.saved_agent,"MATFileName",'load_agentData.mat');
-    policy = coder.loadRLPolicy("load_agentData.mat");
-    delete("load_agentData.mat")
-    policy_plot_2D(policy);
-end
+% figure()
+% plot_max = 3;
+% for i = 1:plot_max
+%     subplot(1,plot_max,i)
+%     n = trainOpts.MaxEpisodes - i + 1;
+%     load_agent = load(['savedAgents/Agent',num2str(n,'%u'),'.mat']);
+%     generatePolicyFunction(load_agent.saved_agent,"MATFileName",'load_agentData.mat');
+%     policy = coder.loadRLPolicy("load_agentData.mat");
+%     delete("load_agentData.mat")
+%     policy_plot_2D(policy);
+% end
 
 %% Plot Reward
 reward_plot(env);

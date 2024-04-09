@@ -4,9 +4,11 @@ import json
 import shutil
 import subprocess
 import jinja2
+import numpy as np
 import pandas as pd
 from packaging import version
 
+import bridgestan as bs
 from posteriordb import PosteriorDatabase
 
 from typing import Any, List
@@ -58,7 +60,54 @@ def output_gs_name(dbpath: str = "posteriordb/posterior_database") -> List[str]:
     return gs_models
 
 
-def extract_trails(model_name: str, pdb_path: str = "posteriordb/posterior_database") -> None:
+def gold_standard(model_name, dbpath="posteriordb/posterior_database"):
+
+    # Model Preparation
+    ## Load DataBase Locally
+    pdb_path = os.path.join(dbpath)
+    my_pdb = PosteriorDatabase(pdb_path)
+
+    ## Load Dataset
+    posterior = my_pdb.posterior(model_name)
+
+    ## Gold Standard
+    gs_list = posterior.reference_draws()
+    df = pd.DataFrame(gs_list)
+    gs_constrain = np.zeros(
+        (
+            sum(flat(posterior.information["dimensions"].values())),
+            posterior.reference_draws_info()["diagnostics"]["ndraws"],
+        )
+    )
+    for i in range(len(df.keys())):
+        gs_s = []
+        for j in range(len(df[df.keys()[i]])):
+            gs_s += df[df.keys()[i]][j]
+        gs_constrain[i] = gs_s
+    gs_constrain = gs_constrain.T
+
+    return gs_constrain
+
+
+def generate_model(
+    model_name: str, dbpath: str = "posteriordb/posterior_database"
+) -> List[str]:
+    # Load DataBase Locally
+    pdb_path = os.path.join(dbpath)
+    my_pdb = PosteriorDatabase(pdb_path)
+
+    ## Load Dataset
+    posterior = my_pdb.posterior(model_name)
+    stan = posterior.model.stan_code_file_path()
+    data = json.dumps(posterior.data.values())
+    model = bs.StanModel.from_stan_file(stan, data)
+
+    return model
+
+
+def extract_trails(
+    model_name: str, pdb_path: str = "posteriordb/posterior_database"
+) -> None:
     share_name = model_name.replace("-", "_")
     my_pdb = PosteriorDatabase(pdb_path)
     posterior = my_pdb.posterior(model_name)

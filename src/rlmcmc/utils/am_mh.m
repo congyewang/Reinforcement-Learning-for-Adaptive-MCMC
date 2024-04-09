@@ -1,4 +1,4 @@
-function [store, acc] = am_mh( ...
+function [store, acc, Sigma] = am_mh( ...
     nits, ...
     theta_start, ...
     initial_mu, ...
@@ -52,7 +52,7 @@ nacc = 0;
 for i = 1:nits
     % Sample from proposal distribution
     theta_prop = mvnrnd(theta(i, :), lambda_seq(i) * Sigma(:, :, i));
-    log_alpha = min(0, log_pi(theta_prop) - log_pi(theta(i, :)));
+    log_alpha = min(0, log_target_pdf(theta_prop) - log_target_pdf(theta(i, :)));
 
     % Accept or reject
     if log(rand()) < log_alpha
@@ -70,8 +70,4 @@ end
 
 store = theta(2:end, :);
 acc = nacc / nits;
-end
-
-function [res] = log_pi(x)
-res = mixture_gaussian_target(x');
 end
