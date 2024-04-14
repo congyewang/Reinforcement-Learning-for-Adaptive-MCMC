@@ -4,25 +4,21 @@ classdef RLMHEnvV9 < RLMHEnvBase
     end
 
     methods
-        function this = RLMHEnvV9(log_target_pdf, sample_dim, covariance)
-            this = this@RLMHEnvBase(log_target_pdf, sample_dim);
-
-            if nargin < 3
-                covariance = 2.38 * eye(sample_dim);
-            end
-            this.covariance = covariance;
+        function this = RLMHEnvV9(log_target_pdf, initial_sample, initial_covariance)
+            this = this@RLMHEnvBase(log_target_pdf, initial_sample, initial_covariance);
+            this.covariance = initial_covariance;
 
             % Action specification
-            this.ActionInfo = rlNumericSpec([bitshift(sample_dim, 1), 1]);
+            this.ActionInfo = rlNumericSpec([bitshift(this.sample_dim, 1), 1]);
             this.ActionInfo.Name = 'Act';
             this.ActionInfo.Description = 'a_{t} = [phi_{t}; phi^{*}_{t+1}]';
         end
-
     end
 
     methods
         function res = log_proposal_pdf(this, x, mu, var)
-            res = logmvlpdf(x', mu', var);
+            % res = logmvlpdf(x', mu', var);
+            res = logmvnpdf(x', mu', var);
         end
     end
 
@@ -51,10 +47,10 @@ classdef RLMHEnvV9 < RLMHEnvBase
                 );
 
             % Update Observation
-            % next_proposed_sample = mvnrnd(accepted_mean, accepted_covariance);
-            next_proposed_sample = laprnd(this.sample_dim, 1, accepted_mean, accepted_covariance);
-            % observation = [accepted_sample; next_proposed_sample'];
-            observation = [accepted_sample; next_proposed_sample];
+            next_proposed_sample = mvnrnd(accepted_mean, accepted_covariance);
+            % next_proposed_sample = laprnd(this.sample_dim, 1, accepted_mean, accepted_covariance);
+            observation = [accepted_sample; next_proposed_sample'];
+            % observation = [accepted_sample; next_proposed_sample];
             this.state = observation;
 
             % Store

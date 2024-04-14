@@ -70,4 +70,5 @@ end
 
 store = theta(2:end, :);
 acc = nacc / nits;
+
 end

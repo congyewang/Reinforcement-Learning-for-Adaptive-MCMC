@@ -1,10 +1,10 @@
 classdef RLMHEnvV8 < RLMHEnvBase
     methods
-        function this = RLMHEnvV8(log_target_pdf, sample_dim)
-            this = this@RLMHEnvBase(log_target_pdf, sample_dim);
+        function this = RLMHEnvV8(log_target_pdf, initial_sample, initial_covariance)
+            this = this@RLMHEnvBase(log_target_pdf, initial_sample, initial_covariance);
 
             % Action specification
-            this.ActionInfo = rlNumericSpec([bitshift(sample_dim, 1), 1]);
+            this.ActionInfo = rlNumericSpec([bitshift(this.sample_dim, 1), 1]);
             this.ActionInfo.Name = 'Act';
             this.ActionInfo.Description = 'a_{t} = [mean_{t}; mean^{*}_{t+1}]';
         end

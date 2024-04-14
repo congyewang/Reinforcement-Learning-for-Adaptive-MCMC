@@ -1,10 +1,11 @@
 classdef RLMHEnvV10 < RLMHEnvBase
     methods
-        function this = RLMHEnvV10(log_target_pdf, sample_dim)
-            this = this@RLMHEnvBase(log_target_pdf, sample_dim);
+        function this = RLMHEnvV10(log_target_pdf, initial_sample, initial_covariance)
+            this = this@RLMHEnvBase(log_target_pdf, initial_sample, initial_covariance);
+            this.covariance = initial_covariance;
 
             % Action specification
-            this.ActionInfo = rlNumericSpec([bitshift(sample_dim+1, 1), 1]);
+            this.ActionInfo = rlNumericSpec([bitshift(this.sample_dim + 1, 1), 1]);
             this.ActionInfo.Name = 'Act';
             this.ActionInfo.Description = 'a_{t} = [a_{t} = [phi_{t}; phi^{*}_{t+1}; std_{t}; std^{*}_{t+1}]';
         end

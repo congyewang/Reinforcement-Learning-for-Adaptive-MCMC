@@ -20,33 +20,99 @@ classdef TwinNetworkLayer < nnet.layer.Layer
             at the TwinNetworkLayer instantiate.
             %}
             arguments
-                args.Name = "";
-                args.input_nodes = []; % dim of x_n
-                args.hidden_nodes = [];
-                args.output_nodes = []; % dim of phi(x_n)
+                args.Name string;
+                args.input_nodes int16; % dim of x_n
+                args.hidden_nodes int16;
+                args.output_nodes int16; % dim of phi(x_n)
+                args.mag double = 1.0;
             end
+
             % initialisation
             layer.Name = args.Name;
-            layer.weights_input_hidden = layer.xavier_uniform_init(args.input_nodes, args.hidden_nodes);
+
+            layer.weights_input_hidden = layer.kaiming_normal_init(args.input_nodes, args.hidden_nodes, args.mag);
             layer.bias_hidden = zeros(args.hidden_nodes, 1);
-            layer.weights_hidden_output = layer.xavier_uniform_init(args.hidden_nodes, args.output_nodes);
+            layer.weights_hidden_output = layer.kaiming_normal_init(args.hidden_nodes, args.output_nodes, args.mag);
             layer.bias_output = zeros(args.output_nodes, 1);
         end
 
-        function weights = xavier_uniform_init(layer, fan_in, fan_out)
+        %% initialize Neural Network parameters Function
+        function weights = xavier_uniform_init(layer, fan_in, fan_out, mag)
             %{
             Xavier uniform initialisation. The purpose of the Xavier
             initialisation is to keep the variance of the inputs constant
             at each layer while training the deep network to avoid the
             problem of vanishing or exploding gradients.
+
             Args:
                 fan_in: Input layer size.
                 fan_out: Output layer size.
             %}
-            a = sqrt(6 / (fan_in + fan_out));
-            weights = -a + (2 * a) .* rand(fan_in, fan_out);
+
+            % Calculate the range of initialisation a
+            gain = mag * 1.0;
+            std = gain * sqrt(2.0 / double(fan_in + fan_out));
+            a = sqrt(3.0) * std;
+            % Randomly initialise the weight matrix from a uniform distribution U(-a, a)
+            weights = unifrnd(-a, a, fan_in, fan_out);
         end
 
+        function weights = xavier_normal_init(layer, fan_in, fan_out, mag)
+            %{
+            Xavier normal initialisation.
+
+            Args:
+                fan_in: Input layer size.
+                fan_out: Output layer size.
+            %}
+
+            % Calculate standard deviation
+            gain = mag * 1.0;
+            std = gain * sqrt(2.0 / double(fan_in + fan_out));
+
+            % Randomly initialise the weight matrix using a normal distribution N(0, sigma^2)
+            weights = normrnd(0, std, fan_in, fan_out);
+        end
+
+        function weights = kaiming_uniform_init(layer, fan_in, fan_out, mag)
+            %{
+            Kaiming uniform initialisation, which is a weight initialisation
+            method specifically designed to solve the problem of gradient
+            vanishing/exploding of ReLU activation functions in deep neural
+            networks. This method assumes that the activation function is a
+            ReLU and therefore takes into account the properties of ReLU
+            during initialisation.
+
+            Args:
+                fan_in: Input layer size.
+                fan_out: Output layer size.
+            %}
+
+            % Calculate the range of initialisation bound
+            gain = mag * sqrt(2);
+            std = gain / sqrt(double(fan_in));
+            bound = sqrt(3.0) * std;
+
+            % Randomly initialise the weight matrix from a uniform distribution U(-bound, bound)
+            weights = unifrnd(-bound, bound, fan_in, fan_out);
+        end
+
+        function weights = kaiming_normal_init(layer, fan_in, fan_out, mag)
+            %{
+            Kaiming normal initialisation
+
+            Args:
+                fan_in: Input layer size.
+                fan_out: Output layer size.
+            %}
+
+            % Calculate standard deviation
+            gain = mag * 1.0;
+            std = gain / sqrt(double(fan_in));
+
+            % Randomly initialise the weight matrix using a normal distribution N(0, sigma^2)
+            weights = normrnd(0, std, fan_in, fan_out);
+        end
 
         %% Non Linear Activation Function
         function res = relu(layer, x)
@@ -89,10 +155,11 @@ classdef TwinNetworkLayer < nnet.layer.Layer
             Args:
                 observation: s_n = [phi(x_n);phi(x^{*}_{n+1})].
             %}
-            obs_size = size(observation);
-            sample_dim = bitshift(obs_size, -1); % equivalent to sample_dim = obs_size / 2.
-            x_n = observation(1:sample_dim, :);
-            x_n_plus_1_star = observation(sample_dim+1:end, :);
+
+            [obs_dim, obs_length] = size(observation);
+            sample_dim = bitshift(obs_dim, -1); % equivalent to sample_dim = obs_size / 2.
+            x_n = observation(1:sample_dim, 1:obs_length);
+            x_n_plus_1_star = observation(sample_dim+1:end, 1:obs_length);
             a_n = layer.nn(x_n);
             a_n_plus_1_star = layer.nn(x_n_plus_1_star);
             res = [a_n; a_n_plus_1_star];

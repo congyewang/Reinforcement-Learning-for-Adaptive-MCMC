@@ -34,8 +34,17 @@ classdef (Abstract) RLMHEnvBase < rl.env.MATLABEnvironment
     end
 
     methods
-        function this = RLMHEnvBase(log_target_pdf, sample_dim)
-            assert(sample_dim>0, "The sample dimension must be greater than 0.")
+        function this = RLMHEnvBase(log_target_pdf, initial_sample, initial_covariance)
+
+            % Ensure initial_sample is Column Vectors
+            initial_sample = initial_sample(:);
+
+            % Calculate sample_dim
+            sample_dim = size(initial_sample, 1);
+
+            if nargin < 3
+                initial_covariance = (2.38 / sqrt(sample_dim)) * eye(sample_dim);
+            end
 
             % Observation specification
             observation_info = rlNumericSpec([bitshift(sample_dim, 1), 1]);
@@ -52,9 +61,8 @@ classdef (Abstract) RLMHEnvBase < rl.env.MATLABEnvironment
 
             % Initialize Sample Dimension and State
             this.sample_dim = sample_dim; % sample dimension
-            initial_sample = mvnrnd(0, 1, sample_dim);
-            initial_next_proposed_sample = mvnrnd(0, 1, sample_dim);
-            this.state = [initial_sample;initial_next_proposed_sample];
+            initial_next_proposed_sample = mvnrnd(initial_sample, initial_covariance, 1);
+            this.state = [initial_sample;initial_next_proposed_sample'];
 
             % Pass in the Log Target PDF pointer
             this.log_target_pdf_pointer = log_target_pdf;
