@@ -4,9 +4,14 @@ import json
 import shutil
 import subprocess
 import jinja2
+import torch
 import numpy as np
 import pandas as pd
 from packaging import version
+from prettytable import PrettyTable, MARKDOWN
+
+import h5py
+from scipy.io import loadmat
 
 from scipy.stats import chi2
 from scipy.special import gammaln
@@ -14,7 +19,8 @@ from scipy.special import gammaln
 import bridgestan as bs
 from posteriordb import PosteriorDatabase
 
-from typing import Any, List
+from typing import Any, List, Tuple
+from numpy.typing import NDArray
 
 
 def flat(nested_list: List[List[Any]]) -> List[Any]:
@@ -370,3 +376,115 @@ def multiESS_batch(Xi, n, p, theta, detLambda, b, Noffsets):
     mESS = n * (detLambda / np.linalg.det(Sigma)) ** (1.0 / p)
 
     return mESS
+
+
+def excepted_square_jump_distance(data: NDArray[np.float64]) -> NDArray[np.float64]:
+    distances = np.linalg.norm(data[1:] - data[:-1], axis=1)
+    return np.mean(distances)
+
+
+def rbf_kernel(x, y, sigma=1.0):
+    """
+    Compute the RBF (Gaussian) kernel between x and y.
+    """
+
+    beta = 1.0 / (2.0 * sigma**2)
+    dist_sq = torch.cdist(x, y, p=2) ** 2
+    return torch.exp(-beta * dist_sq)
+
+
+def batched_mmd(x, y, batch_size=100, sigma=1.0):
+    """
+    Compute the Maximum Mean Discrepancy (MMD) between x and y.
+    """
+
+    m = x.size(0)
+    n = y.size(0)
+    mmd_estimate = 0.0
+
+    # Compute the MMD estimate in mini-batches
+    for i in range(0, m, batch_size):
+        x_batch = x[i : i + batch_size]
+        for j in range(0, n, batch_size):
+            y_batch = y[j : j + batch_size]
+
+            xx_kernel = rbf_kernel(x_batch, x_batch, sigma)
+            yy_kernel = rbf_kernel(y_batch, y_batch, sigma)
+            xy_kernel = rbf_kernel(x_batch, y_batch, sigma)
+
+            # Compute the MMD estimate for this mini-batch
+            mmd_estimate += xx_kernel.mean() + yy_kernel.mean() - 2 * xy_kernel.mean()
+
+    # Normalize the MMD estimate
+    mmd_estimate /= (m // batch_size) * (n // batch_size)
+
+    return mmd_estimate
+
+
+def calculate_evaluations(
+    model_name: str,
+) -> Tuple[int, float, float, float]:
+    model = generate_model(model_name)
+    gs_constrain = gold_standard(model_name)
+    gs_unconstrain = np.array(
+        [model.param_unconstrain(np.array(i)) for i in gs_constrain]
+    )
+
+    try:
+        mat = loadmat(f"./results/{model_name}/store_accepted_sample.mat")
+        data = np.array(mat["data"])
+    except NotImplementedError:
+        mat_t = h5py.File(f"./results/{model_name}/store_accepted_sample.mat")
+        data_t = np.array(mat_t["data"])
+        data = np.transpose(data_t)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    gs_torch = torch.from_numpy(gs_unconstrain).to(device)
+    data_torch = torch.from_numpy(data).to(device)
+
+    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=1.0)
+    ess = multiESS(data)
+    esjd = excepted_square_jump_distance(data)
+
+    param_unc_num = model.param_unc_num()
+
+    return (
+        param_unc_num,
+        esjd.item(),
+        ess.item(),
+        mmd.item(),
+    )
+
+
+def export_results_table(
+    results_folder_path: str = "./results",
+    output_file_path: str = "./results_table.md",
+    convert_to_latex: bool = False,
+) -> None:
+    model_name = [
+        d
+        for d in os.listdir(results_folder_path)
+        if os.path.isdir(os.path.join(results_folder_path, d))
+    ]
+    model_table = PrettyTable()
+    model_table.set_style(MARKDOWN)
+    model_table.field_names = ["Name", "Dim", "ESJD", "ESS", "MMD"]
+
+    for i in model_name:
+        param_unc_num, esjd, ess, mmd = calculate_evaluations(i)
+        model_table.add_row([i, param_unc_num, esjd, ess, mmd])
+
+    with open(output_file_path, "w") as f:
+        f.write(model_table.get_string(sortby="Dim", out_format="latex"))
+
+    if convert_to_latex:
+        subprocess.run(
+            [
+                "pandoc",
+                "-s",
+                output_file_path,
+                "-o",
+                output_file_path.replace(".md", ".tex"),
+            ]
+        )
