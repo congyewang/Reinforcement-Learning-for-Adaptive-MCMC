@@ -18,7 +18,7 @@ for i = 1:length(prop_list)
         filename = [prop_name '.mat'];
 
         % Save to .mat file
-        save(filename, 'data');
+        save(filename, 'data', '-v7.3');
     end
 end
 
