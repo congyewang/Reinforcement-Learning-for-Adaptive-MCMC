@@ -168,14 +168,8 @@ def extract_train(
         [model.param_unconstrain(np.array(i)) for i in gs_constrain]
     )
 
-    sample_mean = np.mean(gs_unconstrain, axis=0)
-    matlab_sample_mean = "[" + ", ".join(f"{row}" for row in sample_mean) + "]"
-    sample_covariance = np.cov(gs_unconstrain.T)
-    matlab_sample_covariance_str = (
-        "["
-        + "; ".join(", ".join(f"{val}" for val in row) for row in sample_covariance)
-        + "]"
-    )
+    sample_origin = np.zeros_like(gs_unconstrain[0])
+    matlab_sample_origin = "[" + ", ".join(f"{row}" for row in sample_origin) + "]"
 
     # Storage Directory
     destination_dir = os.path.join("./results/", model_name)
@@ -186,10 +180,7 @@ def extract_train(
     env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
     learning_matlab_temp = env.get_template("template.learning.m")
     learning_matlab_temp_out = learning_matlab_temp.render(
-        initial_sample=matlab_sample_mean,
-        covariance_matrix=matlab_sample_covariance_str,
-        critic_hidden_units=str(np.prod(sample_mean.shape) << 1),
-        actor_hidden_units=str((np.prod(sample_mean.shape) << 1) - 2),
+        initial_sample=matlab_sample_origin,
         share_name=share_name,
     )
     with open(os.path.join(destination_dir, "learning.m"), "w") as f:
@@ -489,13 +480,14 @@ def export_results_table(
             ]
         )
 
+
 def copy_so_to_dylib(dir):
     for root, _, files in os.walk(dir):
         for file in files:
             # Check if File End with so
-            if file.endswith('.so'):
+            if file.endswith(".so"):
                 full_file_path = os.path.join(root, file)
                 # Replace so to dylib
-                target_file_path = os.path.join(root, file[:-3] + '.dylib')
+                target_file_path = os.path.join(root, file[:-3] + ".dylib")
                 # Copy the File
                 shutil.copy(full_file_path, target_file_path)

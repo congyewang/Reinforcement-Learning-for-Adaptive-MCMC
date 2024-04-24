@@ -9,14 +9,17 @@ for i = 1:length(lib_path)
 end
 
 for j = 1:length(lib_path)
-    try
-        [~, ~] = loadlibrary(lib_path{j}, h_file_path{j});
-    catch ME
-        disp('Load library error.');
-        disp(ME.message);
-        disp(lib_path{j});
-    end
+    [~, lib_name, ~] = fileparts(lib_path{j});
 
+    if libisloaded(lib_name) == false
+        try
+            [~, ~] = loadlibrary(lib_path{j}, h_file_path{j});
+        catch ME
+            disp('Load library error.');
+            disp(ME.message);
+            disp(lib_path{j});
+        end
+    end
 end
 
 end
