@@ -1,1 +1,3 @@
 Kindly proceed to acquire the Bridgestan software, version [2.4.0](https://github.com/roualdes/bridgestan/releases/download/v2.4.0/bridgestan-2.4.0.tar.gz), and initially execute the [Example Program](https://roualdes.github.io/bridgestan/latest/languages/c-api.html) utilizing the GCC compiler, version [6.3.0](https://ftp.gnu.org/gnu/gcc/gcc-6.3.0/gcc-6.3.0.tar.gz).
+
+If stanc needs to be compiled for use (such as Apple M1, M2, etc.), please note that stan models in PosteriorDB still use the old syntax. For more details, please refer to [Warning: Declaration of arrays by placing brackets after a type is deprecated](https://github.com/paul-buerkner/brms/issues/1376).
