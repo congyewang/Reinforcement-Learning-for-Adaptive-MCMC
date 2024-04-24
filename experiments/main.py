@@ -1,4 +1,5 @@
 import os
+import platform
 import subprocess
 from utils import check_gcc_version, output_gs_name, extract_trails
 
@@ -7,11 +8,12 @@ def main():
     if not os.path.exists("./trails"):
         os.makedirs("./trails")
 
-    check_gcc_version()
+    # check_gcc_version()
     gs_model_name_list = output_gs_name("./posteriordb/posterior_database")
 
     for i in gs_model_name_list:
-        extract_trails(i)
+        if i != "one_comp_mm_elim_abs-one_comp_mm_elim_abs":
+            extract_trails(i)
 
     # Run make
     process = subprocess.Popen(['make'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -29,6 +31,8 @@ def main():
     else:
         print(f"make failed, return_code: {return_code}")
 
+    if platform.system() == "Darwin":
+        copy_so_to_dylib("./trails")
 
 
 if __name__ == "__main__":
