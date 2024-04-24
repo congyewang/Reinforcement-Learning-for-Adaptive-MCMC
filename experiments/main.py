@@ -1,7 +1,7 @@
 import os
 import platform
 import subprocess
-from utils import check_gcc_version, output_gs_name, extract_trails, extract_train
+from utils import check_gcc_version, output_gs_name, extract_trails, extract_train, copy_so_to_dylib
 
 
 def main():
