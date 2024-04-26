@@ -15,7 +15,7 @@ def main():
 
     for i in gs_model_name_list:
         extract_trails(i)
-        # extract_train(i)
+        extract_train(i)
 
     # Run make
     process = subprocess.Popen(
