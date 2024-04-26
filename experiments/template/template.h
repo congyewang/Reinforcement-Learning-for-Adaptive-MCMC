@@ -1,4 +1,4 @@
-#include "../../bridgestan/bridgestan-2.4.0/src/bridgestan.h"
+#include "bridgestan.h"
 #include <stdio.h>
 #include <math.h>
 

@@ -155,6 +155,12 @@ def extract_trails(
         os.path.join(destination_dir, f"lib{share_name}.h"),
     )
 
+    # Generate Bridgestan Head File
+    shutil.copy(
+        os.path.join("./template", "bridgestan.h"),
+        os.path.join(destination_dir, "bridgestan.h"),
+    )
+
 
 def extract_train(
     model_name: str, pdb_path: str = "posteriordb/posterior_database"

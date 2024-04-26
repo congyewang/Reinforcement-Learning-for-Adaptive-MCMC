@@ -14,9 +14,8 @@ def main():
     gs_model_name_list = output_gs_name("./posteriordb/posterior_database")
 
     for i in gs_model_name_list:
-        if i != "one_comp_mm_elim_abs-one_comp_mm_elim_abs":
-            extract_trails(i)
-            extract_train(i)
+        extract_trails(i)
+        # extract_train(i)
 
     # Run make
     process = subprocess.Popen(
