@@ -1,6 +1,7 @@
 # Tell the top-level makefile which relative path to use
-BS_ROOT=../../bridgestan/bridgestan-2.4.0
-include ../../bridgestan/bridgestan-2.4.0/Makefile
+BS_ROOT=../../bridgestan/bridgestan-2.4.1
+include ../../bridgestan/bridgestan-2.4.1/Makefile
+UNAME_S := $(shell uname -s)
 
 MODEL?={{ model_name }}
 CC ?= gcc
@@ -24,3 +25,11 @@ share_static: $(MODEL)_share.c ./$(MODEL)_model.a
 	$(CC) -fPIC -c -I $(SRC) $(MODEL)_share.c -o $(MODEL)_share.o
 	$(LINK.cpp) -shared -o lib$(MODEL).so $(MODEL)_share.o $(MODEL)_model.a $(LDLIBS) $(LIBSUNDIALS) $(MPI_TARGETS) $(TBB_TARGETS)
 	$(RM) $(MODEL)_share.o
+
+ifeq ($(UNAME_S), Darwin)
+post_build:
+	cp lib$(MODEL).so lib$(MODEL).dylib
+else
+post_build:
+	@echo "No additional action needed"
+endif
