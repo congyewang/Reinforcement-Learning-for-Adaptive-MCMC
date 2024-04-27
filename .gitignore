@@ -183,7 +183,7 @@ experiments/posteriordb
 *.mp4
 
 # Bridgestan
-experiments/bridgestan/bridgestan-2.4.0
+experiments/bridgestan/bridgestan-2.4.1
 
 # Trails
 experiments/trails

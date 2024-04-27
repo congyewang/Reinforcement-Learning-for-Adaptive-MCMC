@@ -485,15 +485,3 @@ def export_results_table(
                 output_file_path.replace(".md", ".tex"),
             ]
         )
-
-
-def copy_so_to_dylib(dir):
-    for root, _, files in os.walk(dir):
-        for file in files:
-            # Check if File End with so
-            if file.endswith(".so"):
-                full_file_path = os.path.join(root, file)
-                # Replace so to dylib
-                target_file_path = os.path.join(root, file[:-3] + ".dylib")
-                # Copy the File
-                shutil.copy(full_file_path, target_file_path)

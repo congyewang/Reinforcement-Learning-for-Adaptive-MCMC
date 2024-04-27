@@ -1,7 +1,7 @@
 import os
 import platform
 import subprocess
-from utils import check_gcc_version, output_gs_name, extract_trails, extract_train, copy_so_to_dylib
+from utils import check_gcc_version, output_gs_name, extract_trails, extract_train
 
 
 def main():
@@ -34,9 +34,6 @@ def main():
         print("make success")
     else:
         print(f"make failed, return_code: {return_code}")
-
-    if platform.system() == "Darwin":
-        copy_so_to_dylib("./trails")
 
 
 if __name__ == "__main__":
