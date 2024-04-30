@@ -1,90 +1,62 @@
 clearvars;
 clc;
-rng(1234);
+rng(0);
 
 %% Add Packages
 addpath(genpath('../../../src/rlmcmc/'));
 
 %% Add Log Target PDF
-lib_super_path = "../../trails/";
+lib_super_path = "../../trails/{{ share_name }}";
 
 add_log_target_pdf_lib(lib_super_path);
 add_lib_path(lib_super_path);
 
-%% Set Env
-initial_sample = {{ initial_sample }};
-sample_dim = size(initial_sample, 2);
-covariance = (2.38 / sqrt(sample_dim)) * {{ covariance_matrix }};
-env = RLMHEnvV9(@log_target_pdf, initial_sample, covariance);
+%% add PosteriorDB
+model_name = "{{ share_name }}";
+sample_dim = wrapped_search_sample_dim(model_name);
+log_target_pdf = @(x) wrapped_log_target_pdf(x',model_name);
 
-obsInfo = getObservationInfo(env);
-actInfo = getActionInfo(env);
+%% get (approx) mean (mu) and covariance (Sigma) from adaptive mcmc
+am_nits = 1000;
+am_rate = 0.5;
+
+[x_AMH,~,~,~] = AdaptiveMetropolis(log_target_pdf, sample_dim, am_nits, am_rate);
+
+mu = mean(x_AMH(:,ceil(am_nits/2):end),2);
+Sigma = cov(x_AMH(:,ceil(am_nits/2):end)');
+
+actor_nits = am_nits - ceil(am_nits/2) + 1;
+pretrain_sample = x_AMH(:,ceil(am_nits/2):end)'; % data for pre-training
+
+%% Set environment - use (approx) mean (mu) and covariance (Sigma) to inform proposal
+env = RLMHEnv(log_target_pdf, rand(1, sample_dim), mu, Sigma);
 
 %% Set Critic
-% Define observation and action paths
-obsPath = featureInputLayer(prod(obsInfo.Dimension), Name="obsInLyr");
-actPath = featureInputLayer(prod(actInfo.Dimension), Name="actInLyr");
-% Define common path: concatenate along first dimension
-commonPath = [
-    concatenationLayer(1,2,Name="concat")
-    fullyConnectedLayer({{ critic_hidden_units }})
-    reluLayer
-    fullyConnectedLayer(1)
-    ];
-% Add paths to layerGraph network
-criticNet = layerGraph(obsPath);
-criticNet = addLayers(criticNet, actPath);
-criticNet = addLayers(criticNet, commonPath);
-% Connect paths
-criticNet = connectLayers(criticNet,"obsInLyr","concat/in1");
-criticNet = connectLayers(criticNet,"actInLyr","concat/in2");
-% Create the critic
-critic = rlQValueFunction(criticNet,obsInfo,actInfo,...
-    ObservationInputNames="obsInLyr", ...
-    ActionInputNames="actInLyr");
+critic = make_critic(env);
 
 %% Set Actor
-% Create a network to be used as underlying actor approximator
-actorNet = [
-    featureInputLayer(prod(obsInfo.Dimension))
-    TwinNetworkLayer( ...
-    'Name', 'twin_network_layer', ...
-    'input_nodes', bitshift(prod(obsInfo.Dimension), -1), ...
-    'hidden_nodes', {{ actor_hidden_units }}, ...
-    'output_nodes', bitshift(prod(actInfo.Dimension), -1), ...
-    'mag', 1e-9);
-    ];
-
-% Convert to dlnetwork object
-actorNet = dlnetwork(actorNet);
-% Create the actor
-actor = rlContinuousDeterministicActor(actorNet,obsInfo,actInfo);
+actor = make_actor(env, pretrain_sample, mu, Sigma, actor_nits);
 
 %% Set DDPG
 agent = rlDDPGAgent(actor,critic);
-agent.AgentOptions.ExperienceBufferLength=1e6;
-agent.AgentOptions.NoiseOptions.StandardDeviation = zeros(actInfo.Dimension);
 
-agent.AgentOptions.CriticOptimizerOptions.LearnRate = 1e-2;
-agent.AgentOptions.CriticOptimizerOptions.GradientThreshold = 1e-2;
-
-agent.AgentOptions.ActorOptimizerOptions.LearnRate = 1e-6;
-agent.AgentOptions.ActorOptimizerOptions.GradientThreshold = 1e-10;
+agent.AgentOptions.NoiseOptions.StandardDeviation = zeros(bitshift(sample_dim, 1), 1);
+agent.AgentOptions.ExperienceBufferLength=10^6;
+agent.AgentOptions.ActorOptimizerOptions.GradientThreshold=1e-10;
+agent.AgentOptions.ResetExperienceBufferBeforeTraining = true;
 
 %% Training
-trainOpts = rlTrainingOptions;
-trainOpts.MaxEpisodes = 200;
-trainOpts.StopTrainingCriteria = "EpisodeCount";
-trainOpts.Verbose = false;
-trainOpts.Plots = "none";
+trainOpts = rlTrainingOptions( ...
+    "MaxEpisodes", 100, ...
+    "StopTrainingCriteria", "EpisodeCount", ...
+    "Plots", "none" ...
+    );
 trainingInfo = train(agent,env,trainOpts);
+
+%% Plot Learning Trace
+trace_plot(env);
 
 %% Save Store
 save_store(env);
-
-%% Log Target PDF
-function [res] = log_target_pdf(x)
-
-[res, ~] = wrapped_log_target_pdf(x', '{{ share_name }}');
-
-end
+save("pretrain_sample.mat", "pretrain_sample");
+save("actor.mat", "actor");

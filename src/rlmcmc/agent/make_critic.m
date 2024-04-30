@@ -1,4 +1,5 @@
 function critic = make_critic(env)
+
 %% Get Information
 obsInfo = getObservationInfo(env);
 actInfo = getActionInfo(env);

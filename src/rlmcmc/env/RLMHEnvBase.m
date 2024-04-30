@@ -75,7 +75,7 @@ classdef (Abstract) RLMHEnvBase < rl.env.MATLABEnvironment
         end
 
         function res = log_proposal_pdf(this, x, mean, var)
-            res = logmvnpdf(x', mean', var);
+            res = Laplace(x, mean, var);
         end
 
         function reward = reward_function(this, current_sample, proposed_sample, log_alpha, log_mode)

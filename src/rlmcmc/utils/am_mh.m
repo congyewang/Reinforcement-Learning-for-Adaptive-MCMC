@@ -31,7 +31,7 @@ if nargin < 6 || isempty(lambda_initial)
     lambda_initial = 1;
 end
 if nargin < 7 || isempty(gamma_sequence)
-    gamma_sequence = arrayfun(@(i) 0.5 / (i + 1)^0.6, 0:(nits-1));
+    gamma_sequence = arrayfun(@(i) 0.5 / (i + 1)^0.5, 0:(nits-1));
 end
 if nargin < 8 || isempty(alpha_star)
     alpha_star = 0.234;

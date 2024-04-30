@@ -162,20 +162,8 @@ def extract_trails(
     )
 
 
-def extract_train(
-    model_name: str, pdb_path: str = "posteriordb/posterior_database"
-) -> None:
+def extract_train(model_name: str) -> None:
     share_name = model_name.replace("-", "_")
-
-    # Calculate Mean and Covariance
-    model = generate_model(model_name, pdb_path)
-    gs_constrain = gold_standard(model_name)
-    gs_unconstrain = np.array(
-        [model.param_unconstrain(np.array(i)) for i in gs_constrain]
-    )
-
-    sample_origin = np.zeros_like(gs_unconstrain[0])
-    matlab_sample_origin = "[" + ", ".join(f"{row}" for row in sample_origin) + "]"
 
     # Storage Directory
     destination_dir = os.path.join("./results/", model_name)
@@ -186,8 +174,7 @@ def extract_train(
     env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
     learning_matlab_temp = env.get_template("template.learning.m")
     learning_matlab_temp_out = learning_matlab_temp.render(
-        initial_sample=matlab_sample_origin,
-        share_name=share_name,
+        share_name=share_name
     )
     with open(os.path.join(destination_dir, "learning.m"), "w") as f:
         f.write(learning_matlab_temp_out)
@@ -375,7 +362,7 @@ def multiESS_batch(Xi, n, p, theta, detLambda, b, Noffsets):
     return mESS
 
 
-def excepted_square_jump_distance(data: NDArray[np.float64]) -> NDArray[np.float64]:
+def expected_square_jump_distance(data: NDArray[np.float64]) -> NDArray[np.float64]:
     distances = np.linalg.norm(data[1:] - data[:-1], axis=1)
     return np.mean(distances)
 
@@ -442,7 +429,7 @@ def calculate_evaluations(
 
     mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=1.0)
     ess = multiESS(data)
-    esjd = excepted_square_jump_distance(data)
+    esjd = expected_square_jump_distance(data)
 
     param_unc_num = model.param_unc_num()
 
