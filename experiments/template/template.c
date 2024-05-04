@@ -55,6 +55,27 @@ int matlab_param_num(const char *data, int *param_num) {
   return 0;
 }
 
+int matlab_param_unc_num(const char *data, int *param_unc_num) {
+  char *err_model;
+  int random_seed = 0;
+  bs_model *model;
+
+  model = bs_model_construct(data, random_seed, &err_model);
+  if (!model) {
+      if (err_model) {
+          printf("Error: %s\n", err_model);
+          bs_free_error_msg(err_model);
+      }
+      return -1;
+  }
+
+  *param_unc_num = bs_param_unc_num(model);
+
+  bs_model_destruct(model);
+
+  return 0;
+}
+
 int matlab_param_unconstrain(const char *data, const double *theta, double *theta_unc) {
   char *err_model;
   int random_seed = 0;

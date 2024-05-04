@@ -4,6 +4,6 @@ model_name_replace = strrep(model_name, '-', '_');
 data_path = which(strcat(model_name_replace, ".json"));
 data_path_char = char(data_path);
 
-[~,~,sample_dim]=calllib(strcat("lib", model_name_replace),"matlab_param_num", data_path_char, 0);
+[~,~,sample_dim]=calllib(strcat("lib", model_name_replace),"matlab_param_unc_num", data_path_char, 0);
 
 end
