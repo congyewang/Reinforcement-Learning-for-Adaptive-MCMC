@@ -1,4 +1,4 @@
-function [x, mu, Sigma, log_lambda] = AdaptiveMetropolis(logpdf,d,n,rate,trace_plot)
+function [x, mu, Sigma, log_lambda, reward] = AdaptiveMetropolis(logpdf,d,n,rate,trace_plot)
 %{
     Adaptive Metropolis Algorithm.
     logpdf - function handle to the pdf, taking column vector input.
@@ -23,6 +23,7 @@ x = zeros(d,n);
 mu = zeros(d,n);
 Sigma = zeros(d,d,n); Sigma(:,:,1) = eye(d);
 log_lambda = zeros(n,1);
+reward = zeros(n,1);
 
 %% learning rate
 gamma = @(i) 0.5 * i^(-rate);
@@ -45,6 +46,9 @@ for i = 2:n
     else
         x(:,i) = x(:,i-1);
     end
+
+    %% Store Reward
+    reward(i) = 2 * log(norm(x(:,i-1) - x_star, 2)) + log_alpha;
 
     %% adaptation
     %log_lambda(i) = log( 2.38^2 / d );

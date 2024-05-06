@@ -21,6 +21,7 @@ log_target_pdf = @(x) wrapped_log_target_pdf(x',model_name);
 am_nits = {{ am_nits }};
 am_rate = {{ am_rate }};
 
-[am_samples,~,~,~] = AdaptiveMetropolis(log_target_pdf, sample_dim, am_nits, am_rate);
+[am_samples,~,~,~,am_rewards] = AdaptiveMetropolis(log_target_pdf, sample_dim, am_nits, am_rate);
 
 save("am_samples.mat", "am_samples");
+save("am_rewards.mat", "am_rewards");
