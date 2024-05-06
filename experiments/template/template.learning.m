@@ -56,4 +56,3 @@ trainingInfo = train(agent,env,trainOpts);
 %% Save Store
 save_store(env);
 save("pretrain_sample.mat", "pretrain_sample");
-save("actor.mat", "actor");
