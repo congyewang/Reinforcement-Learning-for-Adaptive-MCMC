@@ -1,5 +1,5 @@
 % function [] = batch_load()
-lib_super_path = "../../experiments/trails/earnings_log10earn_height";
+lib_super_path = "../../experiments/trails";
 
 add_log_target_pdf_lib(lib_super_path);
 add_lib_path(lib_super_path);

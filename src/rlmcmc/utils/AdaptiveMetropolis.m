@@ -1,10 +1,11 @@
-function [x, mu, Sigma, log_lambda] = AdaptiveMetropolis(logpdf,d,n,rate)
+function [x, mu, Sigma, log_lambda] = AdaptiveMetropolis(logpdf,d,n,rate,trace_plot)
 %{
     Adaptive Metropolis Algorithm.
     logpdf - function handle to the pdf, taking column vector input.
     d - dimension of the RV to be sampled.
     n - the number of samples desired.
     rate - the exponent in the learning rate.
+    trace_plot - bool, switch control trace plot.
 %}
 
 if nargin < 3
@@ -12,6 +13,9 @@ if nargin < 3
 end
 if nargin < 4
     rate = 0.5;
+end
+if nargin < 5
+    trace_plot = false;
 end
 
 %% initialisation
@@ -51,6 +55,15 @@ for i = 2:n
         + gamma(i) * ( (x(:,i) - mu(:,i-1)) * ((x(:,i) - mu(:,i-1))') ...
         - Sigma(:,:,i-1) );
 
+end
+
+%% plotting
+if trace_plot
+    figure()
+    plot(x')
+    xlabel('its')
+    ylabel('x')
+    title(['Acceptance rate = ',num2str(mean(accept_status))])
 end
 
 end

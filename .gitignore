@@ -188,6 +188,7 @@ experiments/bridgestan/bridgestan-2.4.1
 # Trails
 experiments/trails
 experiments/results
+experiments/baselines
 
 # Test
 test

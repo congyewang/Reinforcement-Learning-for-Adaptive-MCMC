@@ -173,10 +173,36 @@ def extract_train(model_name: str) -> None:
     # Generate learning.m
     env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
     learning_matlab_temp = env.get_template("template.learning.m")
-    learning_matlab_temp_out = learning_matlab_temp.render(
-        share_name=share_name
-    )
+    learning_matlab_temp_out = learning_matlab_temp.render(share_name=share_name)
     with open(os.path.join(destination_dir, "learning.m"), "w") as f:
+        f.write(learning_matlab_temp_out)
+
+
+def extract_baseline(model_name: str) -> None:
+    learning_path = os.path.join("./results/", model_name, "learning.m")
+
+    with open(learning_path, "r") as f:
+        learning_string = f.read()
+        warm_up_num = re.search(r"am_nits = (\w+);", learning_string).group(1)
+        warm_up_rate = re.search(r"am_rate = (.+);", learning_string).group(1)
+
+        am_nits = eval(warm_up_num) + 50_000
+        am_rate = eval(warm_up_rate)
+
+    share_name = model_name.replace("-", "_")
+
+    # Storage Directory
+    destination_dir = os.path.join("./baselines/", model_name)
+    if not os.path.exists(destination_dir):
+        os.makedirs(destination_dir)
+
+    # Generate learning.m
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
+    learning_matlab_temp = env.get_template("template.baseline.m")
+    learning_matlab_temp_out = learning_matlab_temp.render(
+        share_name=share_name, am_nits=am_nits, am_rate=am_rate
+    )
+    with open(os.path.join(destination_dir, "baseline.m"), "w") as f:
         f.write(learning_matlab_temp_out)
 
 
@@ -441,10 +467,48 @@ def calculate_evaluations(
     )
 
 
+def calculate_evaluations_baselines(
+    model_name: str,
+) -> Tuple[int, float, float, float]:
+    model = generate_model(model_name)
+    gs_constrain = gold_standard(model_name)
+    gs_unconstrain = np.array(
+        [model.param_unconstrain(np.array(i)) for i in gs_constrain]
+    )
+
+    try:
+        mat_t = loadmat(f"./baselines/{model_name}/am_samples.mat")
+        data_all_t = np.array(mat_t["am_samples"])
+        data_all = np.transpose(data_all_t)
+    except NotImplementedError:
+        mat = h5py.File(f"./baselines/{model_name}/am_samples.mat")
+        data_all = np.array(mat["am_samples"])
+
+    data = data_all[-50_000:]
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    gs_torch = torch.from_numpy(gs_unconstrain).to(device)
+    data_torch = torch.from_numpy(data).to(device)
+
+    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=1.0)
+    ess = multiESS(data)
+    esjd = expected_square_jump_distance(data)
+
+    param_unc_num = model.param_unc_num()
+
+    return (
+        param_unc_num,
+        esjd.item(),
+        ess.item(),
+        mmd.item(),
+    )
+
+
 def export_results_table(
     results_folder_path: str = "./results",
     output_file_path: str = "./results_table.md",
     convert_to_latex: bool = False,
+    convert_to_csv: bool = False,
 ) -> None:
     model_name = [
         d
@@ -457,7 +521,9 @@ def export_results_table(
 
     for i in model_name:
         param_unc_num, esjd, ess, mmd = calculate_evaluations(i)
-        model_table.add_row([i, param_unc_num, esjd, ess, mmd])
+        model_table.add_row(
+            [i, param_unc_num, f"{esjd:.4e}", f"{ess:.4e}", f"{mmd:.4e}"]
+        )
 
     with open(output_file_path, "w") as f:
         f.write(model_table.get_string(sortby="Dim", out_format="latex"))
@@ -472,3 +538,47 @@ def export_results_table(
                 output_file_path.replace(".md", ".tex"),
             ]
         )
+
+    if convert_to_csv:
+        with open(output_file_path.replace(".md", ".csv"), "w", newline="") as f_csv:
+            f_csv.write(model_table.get_csv_string())
+
+
+def export_baselines_table(
+    baselines_folder_path: str = "./baselines",
+    output_file_path: str = "./baselines_table.md",
+    convert_to_latex: bool = False,
+    convert_to_csv: bool = False,
+) -> None:
+    model_name = [
+        d
+        for d in os.listdir(baselines_folder_path)
+        if os.path.isdir(os.path.join(baselines_folder_path, d))
+    ]
+    model_table = PrettyTable()
+    model_table.set_style(MARKDOWN)
+    model_table.field_names = ["Name", "Dim", "ESJD", "ESS", "MMD"]
+
+    for i in model_name:
+        param_unc_num, esjd, ess, mmd = calculate_evaluations_baselines(i)
+        model_table.add_row(
+            [i, param_unc_num, f"{esjd:.4e}", f"{ess:.4e}", f"{mmd:.4e}"]
+        )
+
+    with open(output_file_path, "w") as f:
+        f.write(model_table.get_string(sortby="Dim", out_format="latex"))
+
+    if convert_to_latex:
+        subprocess.run(
+            [
+                "pandoc",
+                "-s",
+                output_file_path,
+                "-o",
+                output_file_path.replace(".md", ".tex"),
+            ]
+        )
+
+    if convert_to_csv:
+        with open(output_file_path.replace(".md", ".csv"), "w", newline="") as f_csv:
+            f_csv.write(model_table.get_csv_string())

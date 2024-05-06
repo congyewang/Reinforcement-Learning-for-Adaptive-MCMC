@@ -4,7 +4,13 @@ import subprocess
 import tarfile
 import platform
 import wget
-from utils import check_gcc_version, output_gs_name, extract_trails, extract_train
+from utils import (
+    check_gcc_version,
+    output_gs_name,
+    extract_trails,
+    extract_train,
+    extract_baseline,
+)
 
 
 def pre_build_bridgestan():
@@ -55,6 +61,7 @@ def main():
         if i != "one_comp_mm_elim_abs-one_comp_mm_elim_abs":
             extract_trails(i)
             extract_train(i)
+            extract_baseline(i)
 
     # Run make
     with subprocess.Popen(

@@ -1,4 +1,14 @@
-function critic = make_critic(env)
+function critic = make_critic(env, neuron_num)
+if nargin < 2
+    neuron_num = 8;
+end
+
+if mod(neuron_num, 1) ~= 0
+    error('The number of neurons must be an integer.');
+end
+if neuron_num <= 0
+    error('The number of neurons must be greater than 0.');
+end
 
 %% Get Information
 obsInfo = getObservationInfo(env);
@@ -11,7 +21,7 @@ actPath = featureInputLayer(prod(actInfo.Dimension), Name="actInLyr");
 % Define common path: concatenate along first dimension
 commonPath = [
     concatenationLayer(1,2,Name="concat")
-    fullyConnectedLayer(8)
+    fullyConnectedLayer(neuron_num)
     reluLayer
     fullyConnectedLayer(1)
     ];
