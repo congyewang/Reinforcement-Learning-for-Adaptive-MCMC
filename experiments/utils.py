@@ -1,5 +1,6 @@
 import os
 import re
+import toml
 import json
 import shutil
 import subprocess
@@ -165,6 +166,11 @@ def extract_trails(
 def extract_train(model_name: str) -> None:
     share_name = model_name.replace("-", "_")
 
+    # Load Configuration
+    config_dict = toml.load(os.path.join("template", "config.toml"))
+    am_rate = config_dict[model_name]["am_rate"]
+    gradient_clipping = config_dict[model_name]["gc"]
+
     # Storage Directory
     destination_dir = os.path.join("./results/", model_name)
     if not os.path.exists(destination_dir):
@@ -173,20 +179,23 @@ def extract_train(model_name: str) -> None:
     # Generate learning.m
     env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
     learning_matlab_temp = env.get_template("template.learning.m")
-    learning_matlab_temp_out = learning_matlab_temp.render(share_name=share_name)
+    learning_matlab_temp_out = learning_matlab_temp.render(
+        share_name=share_name, am_rate=am_rate, gradient_clipping=gradient_clipping
+    )
     with open(os.path.join(destination_dir, "learning.m"), "w") as f:
         f.write(learning_matlab_temp_out)
 
 
 def extract_baseline(model_name: str) -> None:
+    # Load Configuration
+    config_dict = toml.load(os.path.join("template", "config.toml"))
+    am_rate = config_dict[model_name]["am_rate"]
+
     learning_path = os.path.join("./results/", model_name, "learning.m")
 
     with open(learning_path, "r") as f:
         learning_string = f.read()
-        warm_up_num = re.search(r"am_nits = (\w+);", learning_string).group(1)
         warm_up_rate = re.search(r"am_rate = (.+);", learning_string).group(1)
-
-        am_nits = eval(warm_up_num) + 50_000
         am_rate = eval(warm_up_rate)
 
     share_name = model_name.replace("-", "_")
@@ -200,7 +209,7 @@ def extract_baseline(model_name: str) -> None:
     env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
     learning_matlab_temp = env.get_template("template.baseline.m")
     learning_matlab_temp_out = learning_matlab_temp.render(
-        share_name=share_name, am_nits=am_nits, am_rate=am_rate
+        share_name=share_name, am_rate=am_rate
     )
     with open(os.path.join(destination_dir, "baseline.m"), "w") as f:
         f.write(learning_matlab_temp_out)

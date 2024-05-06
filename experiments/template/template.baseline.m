@@ -18,7 +18,7 @@ sample_dim = wrapped_search_sample_dim(model_name);
 log_target_pdf = @(x) wrapped_log_target_pdf(x',model_name);
 
 %% Adaptive Metropolis
-am_nits = {{ am_nits }};
+am_nits = 60000;
 am_rate = {{ am_rate }};
 
 [am_samples,~,~,~,am_rewards] = AdaptiveMetropolis(log_target_pdf, sample_dim, am_nits, am_rate);
