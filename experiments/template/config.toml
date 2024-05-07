@@ -37,7 +37,7 @@ theta_start = "mu"
 [mesquite-mesquite]
 am_nits = 6000
 am_rate = 0.5
-gc = 1e-17
+gc = 1e-13
 theta_start = "mu"
 
 [garch-garch11]
