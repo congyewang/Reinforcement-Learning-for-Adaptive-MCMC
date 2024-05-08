@@ -54,5 +54,14 @@ trainOpts = rlTrainingOptions( ...
 trainingInfo = train(agent,env,trainOpts);
 
 %% Save Store
-save_store(env);
-save("pretrain_sample.mat", "pretrain_sample");
+save_store(env, 'train');
+save("pretrain_sample.mat", "pretrain_sample", '-v7.3');
+save("trainingInfo.mat", "trainingInfo", '-v7.3');
+
+%% Simulation
+env_sim = RLMHEnv(log_target_pdf, mu, mu, Sigma);
+
+simOptions = rlSimulationOptions(MaxSteps=500);
+experience = sim(env_sim, agent, simOptions);
+save_store(env_sim, 'sim');
+save("experience.mat", "experience", '-v7.3');

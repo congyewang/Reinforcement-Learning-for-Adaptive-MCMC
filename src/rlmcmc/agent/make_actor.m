@@ -46,12 +46,7 @@ actorNet = dlnetwork(actorNet);
 
 % Pretrain the actor
 S_pretrain = [samples, samples];
-Sig_half = sqrtm(actor_covariance);
-
-phi_pretrain = [
-    (repmat(actor_mean',nits,1) - samples) / Sig_half, ...
-    (repmat(actor_mean',nits,1) - samples) / Sig_half
-    ];
+phi_pretrain = [samples, samples];
 
 % Divide targets into train and validate using random indices
 [train_idx,val_idx,~] = dividerand(size(S_pretrain, 1),0.7,0.3,0.0);

@@ -1,4 +1,8 @@
-function save_store(env)
+function save_store(env, mark)
+
+if nargin < 2
+    mark = 'train';
+end
 
 % Get a list of all properties
 prop_list = properties(env);
@@ -15,7 +19,7 @@ for i = 1:length(prop_list)
         data = cell2mat(prop_value)';
 
         % Build file name (property name.mat)
-        filename = [prop_name '.mat'];
+        filename = sprintf("%s_%s.mat", mark, prop_name);
 
         % Save to .mat file
         save(filename, 'data', '-v7.3');

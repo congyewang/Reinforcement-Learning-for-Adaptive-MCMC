@@ -8,6 +8,7 @@ import jinja2
 import torch
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from packaging import version
 from prettytable import PrettyTable, MARKDOWN
 
@@ -16,6 +17,7 @@ from scipy.io import loadmat
 
 from scipy.stats import chi2
 from scipy.special import gammaln
+from scipy.spatial.distance import pdist
 
 import bridgestan as bs
 from posteriordb import PosteriorDatabase
@@ -179,8 +181,11 @@ def extract_train(model_name: str) -> None:
     # Generate learning.m
     env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
     learning_matlab_temp = env.get_template("template.learning.m")
+    # learning_matlab_temp_out = learning_matlab_temp.render(
+    #     share_name=share_name, am_rate=am_rate, gradient_clipping=gradient_clipping
+    # )
     learning_matlab_temp_out = learning_matlab_temp.render(
-        share_name=share_name, am_rate=am_rate, gradient_clipping=gradient_clipping
+        share_name=share_name, am_rate=am_rate, gradient_clipping=1e-5
     )
     with open(os.path.join(destination_dir, "learning.m"), "w") as f:
         f.write(learning_matlab_temp_out)
@@ -402,7 +407,11 @@ def expected_square_jump_distance(data: NDArray[np.float64]) -> NDArray[np.float
     return np.mean(distances)
 
 
-def rbf_kernel(x, y, sigma=1.0):
+def median_trick(gs: NDArray[np.float64]) -> float:
+    return (0.5 * np.median(pdist(gs))).item()
+
+
+def gaussian_kernel(x: torch.Tensor, y: torch.Tensor, sigma: float = 1.0):
     """
     Compute the RBF (Gaussian) kernel between x and y.
     """
@@ -412,7 +421,9 @@ def rbf_kernel(x, y, sigma=1.0):
     return torch.exp(-beta * dist_sq)
 
 
-def batched_mmd(x, y, batch_size=100, sigma=1.0):
+def batched_mmd(
+    x: torch.Tensor, y: torch.Tensor, batch_size: int = 100, sigma: float = 1.0
+):
     """
     Compute the Maximum Mean Discrepancy (MMD) between x and y.
     """
@@ -427,9 +438,9 @@ def batched_mmd(x, y, batch_size=100, sigma=1.0):
         for j in range(0, n, batch_size):
             y_batch = y[j : j + batch_size]
 
-            xx_kernel = rbf_kernel(x_batch, x_batch, sigma)
-            yy_kernel = rbf_kernel(y_batch, y_batch, sigma)
-            xy_kernel = rbf_kernel(x_batch, y_batch, sigma)
+            xx_kernel = gaussian_kernel(x_batch, x_batch, sigma)  # Median trick
+            yy_kernel = gaussian_kernel(y_batch, y_batch, sigma)  # Median trick
+            xy_kernel = gaussian_kernel(x_batch, y_batch, sigma)  # Median trick
 
             # Compute the MMD estimate for this mini-batch
             mmd_estimate += xx_kernel.mean() + yy_kernel.mean() - 2 * xy_kernel.mean()
@@ -462,7 +473,8 @@ def calculate_evaluations(
     gs_torch = torch.from_numpy(gs_unconstrain).to(device)
     data_torch = torch.from_numpy(data).to(device)
 
-    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=1.0)
+    lengthscale = median_trick(gs_unconstrain)
+    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=lengthscale)
     ess = multiESS(data)
     esjd = expected_square_jump_distance(data)
 
@@ -591,3 +603,70 @@ def export_baselines_table(
     if convert_to_csv:
         with open(output_file_path.replace(".md", ".csv"), "w", newline="") as f_csv:
             f_csv.write(model_table.get_csv_string())
+
+
+def compare_expected_square_jump_distance(
+    model_name: str,
+    window_size: int = 5,
+    save_path: str = "pic/reward",
+    results_base_path: str = "results",
+    baselines_base_path: str = "baselines",
+) -> None:
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    # Extract results data
+    try:
+        mat_rl_reward = loadmat(
+            os.path.join(results_base_path, model_name, "store_reward.mat")
+        )
+        data_rl_reward = np.array(mat_rl_reward["data"])
+    except NotImplementedError:
+        mat_rl_reward_t = h5py.File(
+            os.path.join(results_base_path, model_name, "store_reward.mat")
+        )
+        data_rl_reward_t = np.array(mat_rl_reward_t["data"])
+        data_rl_reward = np.transpose(data_rl_reward_t)
+
+    # Extract baselines data
+    try:
+        mat_am_reward = loadmat(
+            os.path.join(baselines_base_path, model_name, "am_rewards.mat")
+        )
+        data_am_reward = np.array(mat_am_reward["am_rewards"])
+    except NotImplementedError:
+        mat_am_reward_t = h5py.File(
+            os.path.join(baselines_base_path, model_name, "am_rewards.mat")
+        )
+        data_am_reward_t = np.array(mat_am_reward_t["am_rewards"])
+        data_am_reward = np.transpose(data_am_reward_t)
+
+    data_rl_average_episode_reward = np.mean(data_rl_reward.reshape(-1, 500), axis=1)
+    data_am_average_episode_reward = np.mean(
+        data_am_reward[-50_000:].reshape(-1, 500), axis=1
+    )
+
+    data_rl_average_episode_reward_moving_window = moving_average(
+        data_rl_average_episode_reward, window_size
+    )
+    data_am_average_episode_reward_moving_window = moving_average(
+        data_am_average_episode_reward, window_size
+    )
+
+    # Plot
+    plt.figure()
+    plt.plot(data_rl_average_episode_reward_moving_window, label="RL-MCMC")
+    plt.plot(data_am_average_episode_reward_moving_window, label="VA-MCMC")
+    plt.xlabel("Episode")
+    plt.ylabel("Reward")
+    plt.legend()
+    plt.savefig(os.path.join(save_path, f"{model_name}_reward.pdf"))
+    plt.close()
+
+    return None
+
+
+def moving_average(data: NDArray[np.float64], window_size: int) -> NDArray[np.float64]:
+    data_flatten = data.flatten()
+    window = np.ones(int(window_size)) / float(window_size)
+    return np.convolve(data_flatten, window, "valid")
