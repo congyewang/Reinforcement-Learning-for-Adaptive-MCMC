@@ -1,19 +1,22 @@
 import os
+import numpy as np
 from pathlib import Path
 import subprocess
 import tarfile
 import platform
 import wget
+from tqdm.auto import tqdm
 from utils import (
     check_gcc_version,
     output_gs_name,
     extract_trails,
     extract_train,
     extract_baseline,
+    nuts_unconstrain_samples,
 )
 
 
-def pre_build_bridgestan():
+def pre_build_bridgestan() -> None:
     bridgestan_version = "2.4.1"
     bridgestan_base_dir_path = Path("./bridgestan")
     bridgestan_tar_path = (
@@ -46,24 +49,7 @@ def pre_build_bridgestan():
             print(f"Bridgestan c-example make failed, return_code: {return_code}")
 
 
-def main():
-    pre_build_bridgestan()
-
-    if not os.path.exists("./trails"):
-        os.makedirs("./trails")
-
-    if platform.system() != "Darwin":
-        check_gcc_version()
-
-    gs_model_name_list = output_gs_name("./posteriordb/posterior_database")
-
-    for i in gs_model_name_list:
-        if i != "one_comp_mm_elim_abs-one_comp_mm_elim_abs":
-            extract_trails(i)
-            extract_train(i)
-            extract_baseline(i)
-
-    # Run make
+def make_models() -> None:
     with subprocess.Popen(
         ["make"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
     ) as process:
@@ -80,6 +66,33 @@ def main():
             print("make success")
         else:
             print(f"make failed, return_code: {return_code}")
+
+
+def main():
+    # pre_build_bridgestan()
+
+    if not os.path.exists("./trails"):
+        os.makedirs("./trails")
+    if not os.path.exists("./baselines"):
+        os.makedirs("./baselines")
+
+    if platform.system() != "Darwin":
+        check_gcc_version()
+
+    gs_model_name_list = output_gs_name("./posteriordb/posterior_database")
+
+    for i in tqdm(gs_model_name_list):
+        if i not in ["one_comp_mm_elim_abs-one_comp_mm_elim_abs", "diamonds-diamonds"]:
+            extract_trails(i)
+            extract_train(i)
+            extract_baseline(i)
+
+            with open(os.path.join("baselines", i, "nuts.npy"), "wb") as f:
+                nuts_uncon = nuts_unconstrain_samples(i)
+                np.save(f, nuts_uncon)
+
+    Run make
+    make_models()
 
 
 if __name__ == "__main__":

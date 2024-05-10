@@ -1,4 +1,6 @@
 import os
+import sys
+import io
 import re
 import toml
 import json
@@ -11,6 +13,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from packaging import version
 from prettytable import PrettyTable, MARKDOWN
+
+import stan
 
 import h5py
 from scipy.io import loadmat
@@ -181,12 +185,14 @@ def extract_train(model_name: str) -> None:
     # Generate learning.m
     env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
     learning_matlab_temp = env.get_template("template.learning.m")
-    # learning_matlab_temp_out = learning_matlab_temp.render(
-    #     share_name=share_name, am_rate=am_rate, gradient_clipping=gradient_clipping
-    # )
     learning_matlab_temp_out = learning_matlab_temp.render(
-        share_name=share_name, am_rate=am_rate, gradient_clipping=1e-5
+        share_name=share_name,
+        am_rate=am_rate,
+        gradient_clipping=(gradient_clipping * 10**6),
     )
+    # learning_matlab_temp_out = learning_matlab_temp.render(
+    #     share_name=share_name, am_rate=am_rate, gradient_clipping=1e-5
+    # )
     with open(os.path.join(destination_dir, "learning.m"), "w") as f:
         f.write(learning_matlab_temp_out)
 
@@ -461,10 +467,10 @@ def calculate_evaluations(
     )
 
     try:
-        mat = loadmat(f"./results/{model_name}/store_accepted_sample.mat")
+        mat = loadmat(f"./results/{model_name}/train_store_accepted_sample.mat")
         data = np.array(mat["data"])
     except NotImplementedError:
-        mat_t = h5py.File(f"./results/{model_name}/store_accepted_sample.mat")
+        mat_t = h5py.File(f"./results/{model_name}/train_store_accepted_sample.mat")
         data_t = np.array(mat_t["data"])
         data = np.transpose(data_t)
 
@@ -618,12 +624,12 @@ def compare_expected_square_jump_distance(
     # Extract results data
     try:
         mat_rl_reward = loadmat(
-            os.path.join(results_base_path, model_name, "store_reward.mat")
+            os.path.join(results_base_path, model_name, "train_store_reward.mat")
         )
         data_rl_reward = np.array(mat_rl_reward["data"])
     except NotImplementedError:
         mat_rl_reward_t = h5py.File(
-            os.path.join(results_base_path, model_name, "store_reward.mat")
+            os.path.join(results_base_path, model_name, "train_store_reward.mat")
         )
         data_rl_reward_t = np.array(mat_rl_reward_t["data"])
         data_rl_reward = np.transpose(data_rl_reward_t)
@@ -670,3 +676,61 @@ def moving_average(data: NDArray[np.float64], window_size: int) -> NDArray[np.fl
     data_flatten = data.flatten()
     window = np.ones(int(window_size)) / float(window_size)
     return np.convolve(data_flatten, window, "valid")
+
+
+def nuts_unconstrain_samples(
+    model_name: str,
+    dbpath: str = "posteriordb/posterior_database",
+    verbose: bool = False,
+):
+    # Model Preparation
+    ## Load DataBase Locally
+    pdb_path = os.path.join(dbpath)
+    my_pdb = PosteriorDatabase(pdb_path)
+
+    ## Load Dataset
+    posterior = my_pdb.posterior(model_name)
+
+    # Extract Stan Code and Data
+    stan_code = posterior.model.stan_code()
+    stan_code_path = posterior.model.stan_code_file_path()
+    dict_data = posterior.data.values()
+    model = bs.StanModel.from_stan_file(stan_code_path, json.dumps(dict_data))
+
+    # Sampling
+    ## Mute Stan Output
+    if not verbose:
+        stdout = sys.stdout
+        stderr = sys.stderr
+        sys.stdout = io.StringIO()
+        sys.stderr = io.StringIO()
+
+    nuts = stan.build(stan_code, data=dict_data)
+    fit = nuts.sample(
+        num_chains=1,
+        num_samples=50000,
+        num_warmup=10000,
+        init=[
+            dict(
+                zip(
+                    nuts.constrained_param_names,
+                    model.param_constrain(np.repeat(0.0, model.param_unc_num())),
+                )
+            )
+        ],
+    )
+
+    if not verbose:
+        sys.stdout = stdout
+        sys.stderr = stderr
+
+    # Extract Results
+    df = fit.to_frame()
+    nuts_uncon = np.array(
+        [
+            model.param_unconstrain(np.array(i))
+            for i in df[list(fit.constrained_param_names)].to_numpy()
+        ]
+    )
+
+    return nuts_uncon
