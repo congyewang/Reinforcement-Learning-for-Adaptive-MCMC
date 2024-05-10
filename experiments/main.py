@@ -69,7 +69,7 @@ def make_models() -> None:
 
 
 def main():
-    # pre_build_bridgestan()
+    pre_build_bridgestan()
 
     if not os.path.exists("./trails"):
         os.makedirs("./trails")
@@ -91,7 +91,7 @@ def main():
                 nuts_uncon = nuts_unconstrain_samples(i)
                 np.save(f, nuts_uncon)
 
-    Run make
+    # Run make
     make_models()
 
 
