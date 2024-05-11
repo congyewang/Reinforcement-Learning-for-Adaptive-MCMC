@@ -815,8 +815,6 @@ def mala(
         s = hh * c
         y = np.random.multivariate_normal(mx, s)
 
-        print(y)
-
         # Log acceptance probability
         py = fp(y)
         gy = fg(y)
