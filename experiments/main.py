@@ -12,7 +12,7 @@ from utils import (
     extract_trails,
     extract_train,
     extract_baseline,
-    nuts_unconstrain_samples,
+    extract_nuts,
 )
 
 
@@ -69,30 +69,27 @@ def make_models() -> None:
 
 
 def main():
-    pre_build_bridgestan()
+    # pre_build_bridgestan()
 
     if not os.path.exists("./trails"):
         os.makedirs("./trails")
     if not os.path.exists("./baselines"):
         os.makedirs("./baselines")
 
-    if platform.system() != "Darwin":
-        check_gcc_version()
+    # if platform.system() != "Darwin":
+    #     check_gcc_version()
 
     gs_model_name_list = output_gs_name("./posteriordb/posterior_database")
 
     for i in tqdm(gs_model_name_list):
         if i not in ["one_comp_mm_elim_abs-one_comp_mm_elim_abs", "diamonds-diamonds"]:
-            extract_trails(i)
-            extract_train(i)
-            extract_baseline(i)
-
-            with open(os.path.join("baselines", i, "nuts.npy"), "wb") as f:
-                nuts_uncon = nuts_unconstrain_samples(i)
-                np.save(f, nuts_uncon)
+            # extract_trails(i)
+            # extract_train(i)
+            # extract_baseline(i)
+            extract_nuts(i)
 
     # Run make
-    make_models()
+    # make_models()
 
 
 if __name__ == "__main__":

@@ -226,6 +226,26 @@ def extract_baseline(model_name: str) -> None:
         f.write(learning_matlab_temp_out)
 
 
+def extract_nuts(model_name: str) -> None:
+    # Storage Directory
+    destination_dir = os.path.join("./baselines/", model_name)
+    if not os.path.exists(destination_dir):
+        os.makedirs(destination_dir)
+
+    # Generate nuts.py
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
+    nuts_temp = env.get_template("template.nuts.py")
+    nuts_temp_out = nuts_temp.render(model_name=model_name)
+    with open(os.path.join(destination_dir, "nuts.py"), "w") as f:
+        f.write(nuts_temp_out)
+
+    # Copy run-nuts.sh
+    shutil.copy(
+        os.path.join("./template/", "template.run-nuts.sh"),
+        os.path.join(destination_dir, "run-nuts.sh"),
+    )
+
+
 def check_gcc_version():
     # Execute the "gcc --version" command to get the version information.
     res = subprocess.run(["gcc", "--version"], capture_output=True, text=True)
