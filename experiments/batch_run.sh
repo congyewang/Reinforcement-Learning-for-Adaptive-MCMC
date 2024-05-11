@@ -40,12 +40,12 @@ for dir in */; do
         cd ..
 
         runtime=$((end - start))
-        echo "${dir%/},$runtime" >> ../results_runtime.txt
+        echo "${dir%/},$runtime" >> ../${root_dir%/}_runtime.txt
     fi
 done
 
 
 # Send Message
-url="http://moonlitquill.top:8080"
-token="A3SdYB50zDgSCD3"
-curl "$url/message?token=$token" -F "title=${root_dir%/} Finished" -F "message=${root_dir%/} Finished" -F "priority=5"
+url="https://gotify.greenlimes.top"
+token="AEqrtS7SCsWFb6J"
+curl "$url/message?token=$token" -F "title=${root_dir%/} Finished" -F "message=${root_dir%/} Finished" -F "priority=5" --ssl-no-revoke
