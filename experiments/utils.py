@@ -250,6 +250,26 @@ def extract_nuts(model_name: str) -> None:
     )
 
 
+def extract_mala(model_name: str) -> None:
+    # Storage Directory
+    destination_dir = os.path.join("./baselines/", model_name)
+    if not os.path.exists(destination_dir):
+        os.makedirs(destination_dir)
+
+    # Generate mala.py
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader("./template"))
+    mala_temp = env.get_template("template.mala.py")
+    mala_temp_out = mala_temp.render(model_name=model_name)
+    with open(os.path.join(destination_dir, "mala.py"), "w") as f:
+        f.write(mala_temp_out)
+
+    # Copy run-mala.sh
+    shutil.copy(
+        os.path.join("./template/", "template.run-mala.sh"),
+        os.path.join(destination_dir, "run-mala.sh"),
+    )
+
+
 def check_gcc_version():
     # Execute the "gcc --version" command to get the version information.
     res = subprocess.run(["gcc", "--version"], capture_output=True, text=True)
@@ -887,7 +907,7 @@ def mala_adapt(
 
         # Tune step-size
         ar = np.mean(a[i - 1])
-        h = h * np.exp(ar - 0.57)
+        h = h * np.exp(ar - 0.574)
 
         # Next epoch
         x0_new = x[i - 1][-1]

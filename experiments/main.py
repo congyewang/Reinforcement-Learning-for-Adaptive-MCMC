@@ -13,6 +13,7 @@ from utils import (
     extract_train,
     extract_baseline,
     extract_nuts,
+    extract_mala,
 )
 
 
@@ -82,11 +83,12 @@ def main():
     gs_model_name_list = output_gs_name("./posteriordb/posterior_database")
 
     for i in tqdm(gs_model_name_list):
-        if i not in ["one_comp_mm_elim_abs-one_comp_mm_elim_abs", "diamonds-diamonds"]:
+        if i not in ["one_comp_mm_elim_abs-one_comp_mm_elim_abs"]:
             # extract_trails(i)
             # extract_train(i)
             # extract_baseline(i)
-            extract_nuts(i)
+            # extract_nuts(i)
+            extract_mala(i)
 
     # Run make
     # make_models()
