@@ -511,10 +511,10 @@ def calculate_evaluations(
     )
 
     try:
-        mat = loadmat(f"./results/{model_name}/train_store_accepted_sample.mat")
+        mat = loadmat(f"./results/{model_name}/store_accepted_sample.mat")
         data = np.array(mat["data"])
     except NotImplementedError:
-        mat_t = h5py.File(f"./results/{model_name}/train_store_accepted_sample.mat")
+        mat_t = h5py.File(f"./results/{model_name}/store_accepted_sample.mat")
         data_t = np.array(mat_t["data"])
         data = np.transpose(data_t)
 
@@ -668,12 +668,12 @@ def compare_expected_square_jump_distance(
     # Extract results data
     try:
         mat_rl_reward = loadmat(
-            os.path.join(results_base_path, model_name, "train_store_reward.mat")
+            os.path.join(results_base_path, model_name, "store_reward.mat")
         )
         data_rl_reward = np.array(mat_rl_reward["data"])
     except NotImplementedError:
         mat_rl_reward_t = h5py.File(
-            os.path.join(results_base_path, model_name, "train_store_reward.mat")
+            os.path.join(results_base_path, model_name, "store_reward.mat")
         )
         data_rl_reward_t = np.array(mat_rl_reward_t["data"])
         data_rl_reward = np.transpose(data_rl_reward_t)
@@ -750,19 +750,7 @@ def nuts_unconstrain_samples(
         sys.stderr = io.StringIO()
 
     nuts = stan.build(stan_code, data=dict_data)
-    fit = nuts.sample(
-        num_chains=1,
-        num_samples=50000,
-        num_warmup=10000,
-        init=[
-            dict(
-                zip(
-                    nuts.constrained_param_names,
-                    model.param_constrain(np.repeat(0.0, model.param_unc_num())),
-                )
-            )
-        ],
-    )
+    fit = nuts.sample(num_chains=1, num_warmup=10_000, num_samples=50_000)
 
     if not verbose:
         sys.stdout = stdout
@@ -826,6 +814,8 @@ def mala(
         mx = x[i - 1] + hh / 2 * np.dot(c, g[i - 1])
         s = hh * c
         y = np.random.multivariate_normal(mx, s)
+
+        print(y)
 
         # Log acceptance probability
         py = fp(y)
@@ -925,8 +915,12 @@ def mala_unconstrain_samples(
     log_p = model.log_density
     grad_log_p = lambda x: model.log_density_gradient(x)[1]
 
+    while True:
+        x0 = np.random.randn(model.param_unc_num())
+        if not np.any(np.isnan(grad_log_p(x0))):
+            break
+
     nits = 50_000
-    x0 = np.zeros(model.param_unc_num())
     h0 = 0.1
     c0 = np.eye(model.param_unc_num())
     alpha = 11 * [0.3]
