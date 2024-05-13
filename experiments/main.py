@@ -70,28 +70,28 @@ def make_models() -> None:
 
 
 def main():
-    # pre_build_bridgestan()
+    pre_build_bridgestan()
 
     if not os.path.exists("./trails"):
         os.makedirs("./trails")
     if not os.path.exists("./baselines"):
         os.makedirs("./baselines")
 
-    # if platform.system() != "Darwin":
-    #     check_gcc_version()
+    if platform.system() != "Darwin":
+        check_gcc_version()
 
     gs_model_name_list = output_gs_name("./posteriordb/posterior_database")
 
     for i in tqdm(gs_model_name_list):
         if i not in ["one_comp_mm_elim_abs-one_comp_mm_elim_abs"]:
-            # extract_trails(i)
-            # extract_train(i)
-            # extract_baseline(i)
-            # extract_nuts(i)
+            extract_trails(i)
+            extract_train(i)
+            extract_baseline(i)
+            extract_nuts(i)
             extract_mala(i)
 
     # Run make
-    # make_models()
+    make_models()
 
 
 if __name__ == "__main__":

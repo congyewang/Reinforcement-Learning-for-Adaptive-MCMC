@@ -189,6 +189,14 @@ experiments/bridgestan/bridgestan-2.4.1
 experiments/trails
 experiments/results
 experiments/baselines
+experiments/pic
+
+# Demo
+demo/*.pdf
+demo/*.mat
+demo/savedAgents
+demo/build
+demo/*.so
 
 # Test
 test

@@ -1,20 +1,14 @@
-function actor = make_actor( ...
+function actor = make_actor_identity( ...
     env, ...
     samples, ...
-    actor_mean, ...
-    actor_covariance, ...
-    nits, ...
     neuron_num, ...
     max_epochs ...
     )
 
-if nargin < 5
-    nits = 100;
-end
-if nargin < 6
+if nargin < 3
     neuron_num = 32;
 end
-if nargin < 7
+if nargin < 4
     max_epochs = 2000;
 end
 
@@ -46,12 +40,7 @@ actorNet = dlnetwork(actorNet);
 
 % Pretrain the actor
 S_pretrain = [samples, samples];
-Sig_half = sqrtm(actor_covariance);
-
-phi_pretrain = [
-    (repmat(actor_mean',nits,1) - samples) / Sig_half, ...
-    (repmat(actor_mean',nits,1) - samples) / Sig_half
-    ];
+phi_pretrain = [samples, samples];
 
 % Divide targets into train and validate using random indices
 [train_idx,val_idx,~] = dividerand(size(S_pretrain, 1),0.7,0.3,0.0);

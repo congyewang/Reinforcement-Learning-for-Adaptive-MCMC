@@ -33,6 +33,10 @@ from tqdm.auto import tqdm
 from typing import Any, Callable, List, Tuple, Union
 from numpy.typing import NDArray
 
+plt.rcParams["text.usetex"] = True
+plt.rcParams["text.latex.preamble"] = r"\usepackage{amsfonts}"
+plt.rcParams["axes.formatter.use_mathtext"] = True
+
 
 def flat(nested_list: List[List[Any]]) -> List[Any]:
     """
@@ -192,11 +196,8 @@ def extract_train(model_name: str) -> None:
     learning_matlab_temp_out = learning_matlab_temp.render(
         share_name=share_name,
         am_rate=am_rate,
-        gradient_clipping=(gradient_clipping * 10**6),
+        # gradient_clipping=(gradient_clipping * 10**6),
     )
-    # learning_matlab_temp_out = learning_matlab_temp.render(
-    #     share_name=share_name, am_rate=am_rate, gradient_clipping=1e-5
-    # )
     with open(os.path.join(destination_dir, "learning.m"), "w") as f:
         f.write(learning_matlab_temp_out)
 
@@ -511,10 +512,12 @@ def calculate_evaluations(
     )
 
     try:
-        mat = loadmat(f"./results/{model_name}/store_accepted_sample.mat")
+        # mat = loadmat(f"./results/{model_name}/store_accepted_sample.mat")
+        mat = loadmat(f"./results/{model_name}/train_store_accepted_sample.mat")
         data = np.array(mat["data"])
     except NotImplementedError:
-        mat_t = h5py.File(f"./results/{model_name}/store_accepted_sample.mat")
+        # mat_t = h5py.File(f"./results/{model_name}/store_accepted_sample.mat")
+        mat_t = h5py.File(f"./results/{model_name}/train_store_accepted_sample.mat")
         data_t = np.array(mat_t["data"])
         data = np.transpose(data_t)
 
@@ -575,11 +578,70 @@ def calculate_evaluations_baselines(
     )
 
 
+def calculate_evaluations_nuts(
+    model_name: str,
+) -> Tuple[int, float, float, float]:
+    model = generate_model(model_name)
+    gs_constrain = gold_standard(model_name)
+    gs_unconstrain = np.array(
+        [model.param_unconstrain(np.array(i)) for i in gs_constrain]
+    )
+
+    data = np.load(os.path.join("baselines", model_name, "nuts.npy"))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    gs_torch = torch.from_numpy(gs_unconstrain).to(device)
+    data_torch = torch.from_numpy(data).to(device)
+
+    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=1.0)
+    ess = multiESS(data)
+    esjd = expected_square_jump_distance(data)
+
+    param_unc_num = model.param_unc_num()
+
+    return (
+        param_unc_num,
+        esjd.item(),
+        ess.item(),
+        mmd.item(),
+    )
+
+
+def calculate_evaluations_mala(
+    model_name: str,
+) -> Tuple[int, float, float, float]:
+    model = generate_model(model_name)
+    gs_constrain = gold_standard(model_name)
+    gs_unconstrain = np.array(
+        [model.param_unconstrain(np.array(i)) for i in gs_constrain]
+    )
+
+    data = np.load(os.path.join("baselines", model_name, "mala.npy"))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    gs_torch = torch.from_numpy(gs_unconstrain).to(device)
+    data_torch = torch.from_numpy(data).to(device)
+
+    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=1.0)
+    ess = multiESS(data)
+    esjd = expected_square_jump_distance(data)
+
+    param_unc_num = model.param_unc_num()
+
+    return (
+        param_unc_num,
+        esjd.item(),
+        ess.item(),
+        mmd.item(),
+    )
+
+
 def export_results_table(
     results_folder_path: str = "./results",
     output_file_path: str = "./results_table.md",
     convert_to_latex: bool = False,
     convert_to_csv: bool = False,
+    verbose: bool = False
 ) -> None:
     model_name = [
         d
@@ -590,7 +652,7 @@ def export_results_table(
     model_table.set_style(MARKDOWN)
     model_table.field_names = ["Name", "Dim", "ESJD", "ESS", "MMD"]
 
-    for i in model_name:
+    for i in tqdm(model_name, disable=(not verbose)):
         param_unc_num, esjd, ess, mmd = calculate_evaluations(i)
         model_table.add_row(
             [i, param_unc_num, f"{esjd:.4e}", f"{ess:.4e}", f"{mmd:.4e}"]
@@ -655,7 +717,168 @@ def export_baselines_table(
             f_csv.write(model_table.get_csv_string())
 
 
+def export_nuts_table(
+    baselines_folder_path: str = "./baselines",
+    output_file_path: str = "./nuts_table.md",
+    convert_to_latex: bool = False,
+    convert_to_csv: bool = False,
+) -> None:
+    model_name = [
+        d
+        for d in os.listdir(baselines_folder_path)
+        if os.path.isdir(os.path.join(baselines_folder_path, d))
+    ]
+    model_table = PrettyTable()
+    model_table.set_style(MARKDOWN)
+    model_table.field_names = ["Name", "Dim", "ESJD", "ESS", "MMD"]
+
+    for i in model_name:
+        param_unc_num, esjd, ess, mmd = calculate_evaluations_nuts(i)
+        model_table.add_row(
+            [i, param_unc_num, f"{esjd:.4e}", f"{ess:.4e}", f"{mmd:.4e}"]
+        )
+
+    with open(output_file_path, "w") as f:
+        f.write(model_table.get_string(sortby="Dim", out_format="latex"))
+
+    if convert_to_latex:
+        subprocess.run(
+            [
+                "pandoc",
+                "-s",
+                output_file_path,
+                "-o",
+                output_file_path.replace(".md", ".tex"),
+            ]
+        )
+
+    if convert_to_csv:
+        with open(output_file_path.replace(".md", ".csv"), "w", newline="") as f_csv:
+            f_csv.write(model_table.get_csv_string())
+
+
+def export_mala_table(
+    baselines_folder_path: str = "./baselines",
+    output_file_path: str = "./mala_table.md",
+    convert_to_latex: bool = False,
+    convert_to_csv: bool = False,
+) -> None:
+    model_name = [
+        d
+        for d in os.listdir(baselines_folder_path)
+        if os.path.isdir(os.path.join(baselines_folder_path, d))
+    ]
+    model_table = PrettyTable()
+    model_table.set_style(MARKDOWN)
+    model_table.field_names = ["Name", "Dim", "ESJD", "ESS", "MMD"]
+
+    for i in model_name:
+        param_unc_num, esjd, ess, mmd = calculate_evaluations_mala(i)
+        model_table.add_row(
+            [i, param_unc_num, f"{esjd:.4e}", f"{ess:.4e}", f"{mmd:.4e}"]
+        )
+
+    with open(output_file_path, "w") as f:
+        f.write(model_table.get_string(sortby="Dim", out_format="latex"))
+
+    if convert_to_latex:
+        subprocess.run(
+            [
+                "pandoc",
+                "-s",
+                output_file_path,
+                "-o",
+                output_file_path.replace(".md", ".tex"),
+            ]
+        )
+
+    if convert_to_csv:
+        with open(output_file_path.replace(".md", ".csv"), "w", newline="") as f_csv:
+            f_csv.write(model_table.get_csv_string())
+
+
 def compare_expected_square_jump_distance(
+    model_name: str,
+    sample_dim: int,
+    window_size: int = 5,
+    save_path: str = "pic/reward",
+    results_base_path: str = "results",
+    baselines_base_path: str = "baselines",
+) -> None:
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    # Extract Data
+    ## AM
+    try:
+        am_mat_t = loadmat(
+            os.path.join(baselines_base_path, model_name, "am_samples.mat")
+        )
+        am_data_all_t = np.array(am_mat_t["am_samples"])
+        am_data_all = np.transpose(am_data_all_t)
+    except NotImplementedError:
+        am_mat = h5py.File(
+            os.path.join(baselines_base_path, model_name, "am_samples.mat")
+        )
+        am_data_all = np.array(am_mat["am_samples"])
+
+    am_data = am_data_all[-50_000:]
+
+    ## RL-MCMC
+    try:
+        rl_mat = loadmat(
+            os.path.join(results_base_path, model_name, "train_store_accepted_sample.mat")
+        )
+        rl_data = np.array(rl_mat["data"])
+    except NotImplementedError:
+        rl_mat_t = h5py.File(
+            os.path.join(results_base_path, model_name, "train_store_accepted_sample.mat")
+        )
+        rl_data_t = np.array(rl_mat_t["data"])
+        rl_data = np.transpose(rl_data_t)
+
+    ## NUTS
+    nuts_data = np.load(os.path.join(baselines_base_path, model_name, "nuts.npy"))
+
+    ## MALA
+    mala_data = np.load(os.path.join(baselines_base_path, model_name, "mala.npy"))
+
+    # Calculate Expected Square Jump Distance
+    (
+        am_average_episode_reward_moving_window,
+        rl_average_episode_reward_moving_window,
+        nuts_average_episode_reward_moving_window,
+        mala_average_episode_reward_moving_window,
+    ) = (
+        moving_average(
+            np.mean(
+                np.concatenate(([0.0], np.linalg.norm(i[1:] - i[:-1], axis=1))).reshape(
+                    -1, 500
+                ),
+                axis=1,
+            ),
+            window_size,
+        )
+        for i in [am_data, rl_data, nuts_data, mala_data]
+    )
+
+    # Plot
+    plt.figure()
+    plt.plot(rl_average_episode_reward_moving_window, color="#686789")
+    plt.plot(am_average_episode_reward_moving_window, color="#B77F70")
+    plt.plot(nuts_average_episode_reward_moving_window, color="#B0B1B6")
+    plt.plot(mala_average_episode_reward_moving_window, color="#91AD9E")
+    plt.xlabel(r"$\mathrm{Episode}$", fontsize=17)
+    plt.ylabel(r"$\|x_n - x_{n+1}\|$", fontsize=17)
+    plt.title(
+        "$\mathrm{{{0}}} ({1}D)$".format(model_name.replace("_", "\_"), sample_dim),
+        fontsize=17,
+    )
+    plt.savefig(os.path.join(save_path, f"{model_name}_reward.pdf"))
+    plt.close()
+
+
+def compare_expected_square_jump_distance_rao_blackwell(
     model_name: str,
     window_size: int = 5,
     save_path: str = "pic/reward",

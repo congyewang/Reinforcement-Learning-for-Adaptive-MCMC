@@ -42,7 +42,8 @@ agent = rlDDPGAgent(actor,critic);
 
 agent.AgentOptions.NoiseOptions.StandardDeviation = zeros(bitshift(sample_dim, 1), 1);
 agent.AgentOptions.ExperienceBufferLength=10^6;
-agent.AgentOptions.ActorOptimizerOptions.GradientThreshold={{ gradient_clipping }};
+agent.AgentOptions.ActorOptimizerOptions.LearnRate = 1e-6;
+agent.AgentOptions.ActorOptimizerOptions.GradientThreshold = min(size(Sigma, 1) / norm(Sigma, 'fro')^2, 1e-5);
 agent.AgentOptions.ResetExperienceBufferBeforeTraining = true;
 
 %% Training
@@ -59,9 +60,9 @@ save("pretrain_sample.mat", "pretrain_sample", '-v7.3');
 save("trainingInfo.mat", "trainingInfo", '-v7.3');
 
 %% Simulation
-env_sim = RLMHEnv(log_target_pdf, mu, mu, Sigma);
+%env_sim = RLMHEnv(log_target_pdf, mu, mu, Sigma);
 
-simOptions = rlSimulationOptions(MaxSteps=500);
-experience = sim(env_sim, agent, simOptions);
-save_store(env_sim, 'sim');
-save("experience.mat", "experience", '-v7.3');
+%simOptions = rlSimulationOptions(MaxSteps=50000);
+%experience = sim(env_sim, agent, simOptions);
+%save_store(env_sim, 'sim');
+%save("experience.mat", "experience", '-v7.3');
