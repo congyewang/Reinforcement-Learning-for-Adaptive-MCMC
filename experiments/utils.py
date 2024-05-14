@@ -481,7 +481,7 @@ def batched_mmd(
 
     m = x.size(0)
     n = y.size(0)
-    mmd_estimate = 0.0
+    mmd_estimate_xx, mmd_estimate_yy, mmd_estimate_xy = 0.0, 0.0, 0.0
 
     # Compute the MMD estimate in mini-batches
     for i in range(0, m, batch_size):
@@ -489,15 +489,19 @@ def batched_mmd(
         for j in range(0, n, batch_size):
             y_batch = y[j : j + batch_size]
 
-            xx_kernel = gaussian_kernel(x_batch, x_batch, sigma)  # Median trick
-            yy_kernel = gaussian_kernel(y_batch, y_batch, sigma)  # Median trick
-            xy_kernel = gaussian_kernel(x_batch, y_batch, sigma)  # Median trick
+            xx_kernel = gaussian_kernel(x_batch, x_batch, sigma)
+            yy_kernel = gaussian_kernel(y_batch, y_batch, sigma)
+            xy_kernel = gaussian_kernel(x_batch, y_batch, sigma)
 
             # Compute the MMD estimate for this mini-batch
-            mmd_estimate += xx_kernel.mean() + yy_kernel.mean() - 2 * xy_kernel.mean()
+            mmd_estimate_xx += xx_kernel.sum()
+            mmd_estimate_yy += yy_kernel.sum()
+            mmd_estimate_xy += xy_kernel.sum()
 
     # Normalize the MMD estimate
-    mmd_estimate /= (m // batch_size) * (n // batch_size)
+    mmd_estimate = (
+        mmd_estimate_xx / m**2 + mmd_estimate_yy / n**2 - 2 * mmd_estimate_xy / (m * n)
+    )
 
     return mmd_estimate
 
@@ -564,7 +568,8 @@ def calculate_evaluations_baselines(
     gs_torch = torch.from_numpy(gs_unconstrain).to(device)
     data_torch = torch.from_numpy(data).to(device)
 
-    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=1.0)
+    lengthscale = median_trick(gs_unconstrain)
+    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=lengthscale)
     ess = multiESS(data)
     esjd = expected_square_jump_distance(data)
 
@@ -593,7 +598,8 @@ def calculate_evaluations_nuts(
     gs_torch = torch.from_numpy(gs_unconstrain).to(device)
     data_torch = torch.from_numpy(data).to(device)
 
-    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=1.0)
+    lengthscale = median_trick(gs_unconstrain)
+    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=lengthscale)
     ess = multiESS(data)
     esjd = expected_square_jump_distance(data)
 
@@ -622,7 +628,8 @@ def calculate_evaluations_mala(
     gs_torch = torch.from_numpy(gs_unconstrain).to(device)
     data_torch = torch.from_numpy(data).to(device)
 
-    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=1.0)
+    lengthscale = median_trick(gs_unconstrain)
+    mmd = batched_mmd(gs_torch, data_torch, batch_size=1000, sigma=lengthscale)
     ess = multiESS(data)
     esjd = expected_square_jump_distance(data)
 
@@ -641,7 +648,7 @@ def export_results_table(
     output_file_path: str = "./results_table.md",
     convert_to_latex: bool = False,
     convert_to_csv: bool = False,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> None:
     model_name = [
         d
@@ -682,6 +689,7 @@ def export_baselines_table(
     output_file_path: str = "./baselines_table.md",
     convert_to_latex: bool = False,
     convert_to_csv: bool = False,
+    verbose: bool = False,
 ) -> None:
     model_name = [
         d
@@ -692,7 +700,7 @@ def export_baselines_table(
     model_table.set_style(MARKDOWN)
     model_table.field_names = ["Name", "Dim", "ESJD", "ESS", "MMD"]
 
-    for i in model_name:
+    for i in tqdm(model_name, disable=(not verbose)):
         param_unc_num, esjd, ess, mmd = calculate_evaluations_baselines(i)
         model_table.add_row(
             [i, param_unc_num, f"{esjd:.4e}", f"{ess:.4e}", f"{mmd:.4e}"]
@@ -722,6 +730,7 @@ def export_nuts_table(
     output_file_path: str = "./nuts_table.md",
     convert_to_latex: bool = False,
     convert_to_csv: bool = False,
+    verbose: bool = False,
 ) -> None:
     model_name = [
         d
@@ -732,7 +741,7 @@ def export_nuts_table(
     model_table.set_style(MARKDOWN)
     model_table.field_names = ["Name", "Dim", "ESJD", "ESS", "MMD"]
 
-    for i in model_name:
+    for i in tqdm(model_name, disable=(not verbose)):
         param_unc_num, esjd, ess, mmd = calculate_evaluations_nuts(i)
         model_table.add_row(
             [i, param_unc_num, f"{esjd:.4e}", f"{ess:.4e}", f"{mmd:.4e}"]
@@ -762,6 +771,7 @@ def export_mala_table(
     output_file_path: str = "./mala_table.md",
     convert_to_latex: bool = False,
     convert_to_csv: bool = False,
+    verbose: bool = False,
 ) -> None:
     model_name = [
         d
@@ -772,7 +782,7 @@ def export_mala_table(
     model_table.set_style(MARKDOWN)
     model_table.field_names = ["Name", "Dim", "ESJD", "ESS", "MMD"]
 
-    for i in model_name:
+    for i in tqdm(model_name, disable=(not verbose)):
         param_unc_num, esjd, ess, mmd = calculate_evaluations_mala(i)
         model_table.add_row(
             [i, param_unc_num, f"{esjd:.4e}", f"{ess:.4e}", f"{mmd:.4e}"]
@@ -827,12 +837,16 @@ def compare_expected_square_jump_distance(
     ## RL-MCMC
     try:
         rl_mat = loadmat(
-            os.path.join(results_base_path, model_name, "train_store_accepted_sample.mat")
+            os.path.join(
+                results_base_path, model_name, "train_store_accepted_sample.mat"
+            )
         )
         rl_data = np.array(rl_mat["data"])
     except NotImplementedError:
         rl_mat_t = h5py.File(
-            os.path.join(results_base_path, model_name, "train_store_accepted_sample.mat")
+            os.path.join(
+                results_base_path, model_name, "train_store_accepted_sample.mat"
+            )
         )
         rl_data_t = np.array(rl_mat_t["data"])
         rl_data = np.transpose(rl_data_t)

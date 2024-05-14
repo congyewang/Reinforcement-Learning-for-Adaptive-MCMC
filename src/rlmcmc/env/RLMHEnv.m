@@ -20,14 +20,38 @@ classdef RLMHEnv < RLMHEnvBase
     end
 
     methods
-        function [observation, reward, is_done, info] = step(this, action)
-            % Unpack action
-            current_phi = action(1:this.sample_dim);
-            proposed_phi = action(this.sample_dim+1:end);
+        function res = gamma_c(this, x, mu, Sigma)
+            Sig_half = sqrtm(Sigma);
+            eta = norm(Sig_half \ (x - mu))^2 / 10^2;
 
+            if eta >= 0 && eta < 0.5
+                res = 0;
+            elseif eta >= 0.5 && eta < 1
+                res = (1 + exp(-((4 * eta - 3) / (4 * eta^2 - 6 * eta + 2))))^(-1);
+            else
+                res = 1;
+            end
+        end
+    end
+
+    methods
+        function [observation, reward, is_done, info] = step(this, action)
             % Unpack state
             current_sample = this.state(1:this.sample_dim);
             proposed_sample = this.state(this.sample_dim+1:end);
+
+            % Unpack action
+            current_psi = action(1:this.sample_dim);
+            proposed_psi = action(this.sample_dim+1:end);
+
+            current_phi = current_psi + this.gamma_c( ...
+                current_sample, ...
+                this.target_mean, ...
+                this.covariance) * (current_sample - current_psi);
+            proposed_phi = proposed_psi + this.gamma_c( ...
+                proposed_sample, ...
+                this.target_mean, ...
+                this.covariance)*(proposed_sample - proposed_psi);
 
             % Proposal means
             proposal_covariance_root = sqrtm(this.covariance);
