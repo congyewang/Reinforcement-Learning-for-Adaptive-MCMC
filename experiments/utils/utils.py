@@ -400,11 +400,6 @@ class Extractor:
         template_root_path = os.path.dirname(mala_template_path)
         template_file_name = os.path.basename(mala_template_path)
 
-        if not os.path.exists(mala_template_path):
-            print(f"Template file '{mala_template_path}' does not exist.")
-            current_file_path = os.path.abspath(__file__)
-            print(f"Current file path: {current_file_path}")
-
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_root_path))
         mala_temp = env.get_template(template_file_name)
         mala_temp_out = mala_temp.render(model_name=model_name)
