@@ -1,23 +1,18 @@
 import os
 import sys
 import numpy as np
+import importlib
 
 np.random.seed(0)
+sys.path.append("../..")
 
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(os.path.dirname(script_dir))
-
-if root_dir not in sys.path:
-    sys.path.append(root_dir)
-
-from utils import mala_unconstrain_samples
+utils = importlib.import_module("utils")
 
 
 model_name = "{{ model_name }}"
 
 with open("mala.npy", "wb") as f:
-    mala_uncon = mala_unconstrain_samples(
-        model_name, dbpath="../../posteriordb/posterior_database"
-    )
+    mala_uncon = utils.Sampler(
+        model_name, dbpath=os.path.join("..", "..", "posteriordb", "posterior_database")
+    ).mala()
     np.save(f, mala_uncon)

@@ -6,15 +6,7 @@ import tarfile
 import platform
 import wget
 from tqdm.auto import tqdm
-from utils import (
-    check_gcc_version,
-    output_gs_name,
-    extract_trails,
-    extract_train,
-    extract_baseline,
-    extract_nuts,
-    extract_mala,
-)
+from utils import Extractor, Toolbox
 
 
 def pre_build_bridgestan() -> None:
@@ -78,17 +70,16 @@ def main():
         os.makedirs("./baselines")
 
     if platform.system() != "Darwin":
-        check_gcc_version()
+        Toolbox.check_gcc_version()
 
-    gs_model_name_list = output_gs_name("./posteriordb/posterior_database")
+    gs_model_name_list = Toolbox.output_gs_name()
 
     for i in tqdm(gs_model_name_list):
-        if i not in ["one_comp_mm_elim_abs-one_comp_mm_elim_abs"]:
-            extract_trails(i)
-            extract_train(i)
-            extract_baseline(i)
-            extract_nuts(i)
-            extract_mala(i)
+        Extractor.make("model")(i)
+        Extractor.make("result")(i)
+        Extractor.make("baseline")(i)
+        Extractor.make("mala")(i)
+        Extractor.make("nuts")(i)
 
     # Run make
     make_models()
