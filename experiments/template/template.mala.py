@@ -1,7 +1,8 @@
+import importlib
 import os
 import sys
+
 import numpy as np
-import importlib
 
 np.random.seed(0)
 sys.path.append("../..")

@@ -1,8 +1,9 @@
 import os
-from pathlib import Path
+import platform
 import subprocess
 import tarfile
-import platform
+from pathlib import Path
+
 import wget
 from tqdm.auto import tqdm
 from utils import Extractor, Toolbox

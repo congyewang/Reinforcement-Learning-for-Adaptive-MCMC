@@ -1,40 +1,33 @@
-import os
-import sys
 import io
-import re
-import warnings
-import toml
 import json
+import os
+import re
 import shutil
 import subprocess
-import jinja2
-import torch
-import numpy as np
-import pandas as pd
-from scipy.stats import multivariate_normal
-from statsmodels.stats.correlation_tools import cov_nearest
-import matplotlib.pyplot as plt
-from packaging import version
-from prettytable import PrettyTable, MARKDOWN
-
-import stan
-
-import h5py
-from scipy.io import loadmat
-
-from scipy.stats import chi2
-from scipy.special import gammaln
-from scipy.spatial.distance import pdist
+import sys
+import warnings
+from functools import lru_cache
+from typing import Any, Callable, List, Tuple, Union
 
 import bridgestan as bs
-from posteriordb import PosteriorDatabase
-
-from tqdm.auto import tqdm
-
-from typing import Any, Callable, List, Tuple, Union
+import h5py
+import jinja2
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import stan
+import toml
+import torch
 from numpy.typing import NDArray
-
-from functools import lru_cache
+from packaging import version
+from posteriordb import PosteriorDatabase
+from prettytable import MARKDOWN, PrettyTable
+from scipy.io import loadmat
+from scipy.spatial.distance import pdist
+from scipy.special import gammaln
+from scipy.stats import chi2, multivariate_normal
+from statsmodels.stats.correlation_tools import cov_nearest
+from tqdm.auto import tqdm
 
 plt.rcParams["text.usetex"] = True
 plt.rcParams["text.latex.preamble"] = r"\usepackage{amsfonts}"

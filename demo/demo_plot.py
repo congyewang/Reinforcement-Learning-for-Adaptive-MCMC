@@ -1,14 +1,15 @@
-import stan
-import numpy as np
-import matplotlib.pyplot as plt
+from typing import Any, Callable, List, Tuple, Union
+
 import bridgestan as bs
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+import stan
+from numpy.typing import NDArray
+from scipy.io import loadmat
 from scipy.stats import multivariate_normal
 from statsmodels.stats.correlation_tools import cov_nearest
-from typing import Any, Callable, List, Tuple, Union
-from numpy.typing import NDArray
 from tqdm.auto import tqdm
-import h5py
-from scipy.io import loadmat
 
 np.random.seed(0)
 
