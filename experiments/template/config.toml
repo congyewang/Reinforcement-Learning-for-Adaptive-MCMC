@@ -1,275 +1,137 @@
 [kidiq-kidscore_momhs]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-13
-theta_start = "rand(1, sample_dim)"
 
 [kidiq_with_mom_work-kidscore_mom_work]
-am_nits = 3000
 am_rate = 0.56
-gc = 1e-12
-theta_start = "rand(1, sample_dim)"
 
 [kidiq-kidscore_momhsiq]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-16
-theta_start = "rand(1, sample_dim)"
 
 [nes1996-nes]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-12
-theta_start = "rand(1, sample_dim)"
 
 [earnings-log10earn_height]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [earnings-earn_height]
-am_nits = 5000
 am_rate = 0.5
-gc = 1e-20
-theta_start = "mu"
 
 [mesquite-mesquite]
-am_nits = 6000
 am_rate = 0.5
-gc = 1e-13
-theta_start = "mu"
 
 [garch-garch11]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-12
-theta_start = "rand(1, sample_dim)"
 
 [earnings-logearn_interaction]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-13
-theta_start = "rand(1, sample_dim)"
 
 [kidiq-kidscore_momiq]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-13
-theta_start = "rand(1, sample_dim)"
 
 [kidiq_with_mom_work-kidscore_interaction_z]
-am_nits = 3000
 am_rate = 0.56
-gc = 1e-16
-theta_start = "rand(1, sample_dim)"
 
 [nes2000-nes]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-11
-theta_start = "mu"
 
 [nes1976-nes]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-11
-theta_start = "rand(1, sample_dim)"
 
 [eight_schools-eight_schools_centered]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [hudson_lynx_hare-lotka_volterra]
-am_nits = 6000
 am_rate = 0.55
-gc = 1e-16
-theta_start = "mu"
 
 [earnings-logearn_interaction_z]
-am_nits = 3000
 am_rate = 0.65
-gc = 1e-11
-theta_start = "rand(1, sample_dim)"
 
 [nes1980-nes]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-12
-theta_start = "rand(1, sample_dim)"
 
 [mcycle_gp-accel_gp]
-am_nits = 10000
 am_rate = 0.2
-gc = 1e-20
-theta_start = "mu"
 
 [sblri-blr]
-am_nits = 6000
 am_rate = 0.52
-gc = 1e-13
-theta_start = "rand(1, sample_dim)"
 
 [arma-arma11]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-14
-theta_start = "mu"
 
 [kidiq_with_mom_work-kidscore_interaction_c2]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-16
-theta_start = "rand(1, sample_dim)"
 
 [sblrc-blr]
-am_nits = 6000
 am_rate = 0.4
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [earnings-logearn_height]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [nes1984-nes]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-12
-theta_start = "mu"
 
 [mesquite-logmesquite_logvas]
-am_nits = 3000
 am_rate = 0.55
-gc = 1e-11
-theta_start = "mu"
 
 [nes1988-nes]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-12
-theta_start = "mu"
 
 [arK-arK]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-14
-theta_start = "rand(1, sample_dim)"
 
 [nes1992-nes]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-12
-theta_start = "mu"
 
 [mesquite-logmesquite_logva]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-14
-theta_start = "rand(1, sample_dim)"
 
 [mesquite-logmesquite]
-am_nits = 3000
 am_rate = 0.55
-gc = 1e-14
-theta_start = "mu"
 
 [diamonds-diamonds]
-am_nits = 10000
 am_rate = 0.2
-gc = 1e-20
-theta_start = "mu"
 
 [earnings-logearn_height_male]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [kidiq_with_mom_work-kidscore_interaction_c]
-am_nits = 3000
 am_rate = 0.5
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [mesquite-logmesquite_logvash]
-am_nits = 3000
 am_rate = 0.55
-gc = 1e-13
-theta_start = "mu"
 
 [nes1972-nes]
-am_nits = 10000
 am_rate = 0.8
-gc = 1e-12
-theta_start = "mu"
 
 [eight_schools-eight_schools_noncentered]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-17
-theta_start = "mu"
 
 [hmm_example-hmm_example]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [mesquite-logmesquite_logvolume]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-13
-theta_start = "rand(1, sample_dim)"
 
 [bball_drive_event_0-hmm_drive_0]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [gp_pois_regr-gp_pois_regr]
-am_nits = 8000
 am_rate = 0.8
-gc = 1e-13
-theta_start = "mu"
 
 [kilpisjarvi_mod-kilpisjarvi]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-18
-theta_start = "rand(1, sample_dim)"
 
 [gp_pois_regr-gp_regr]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [bball_drive_event_1-hmm_drive_1]
-am_nits = 6000
 am_rate = 0.55
-gc = 1e-13
-theta_start = "rand(1, sample_dim)"
 
 [low_dim_gauss_mix-low_dim_gauss_mix]
-am_nits = 2000
 am_rate = 0.6
-gc = 1e-16
-theta_start = "rand(1, sample_dim)"
 
 [earnings-logearn_logheight_male]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-15
-theta_start = "rand(1, sample_dim)"
 
 [kidiq-kidscore_interaction]
-am_nits = 2000
 am_rate = 0.5
-gc = 1e-16
-theta_start = "rand(1, sample_dim)"
