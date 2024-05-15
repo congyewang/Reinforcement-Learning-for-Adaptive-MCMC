@@ -1,12 +1,12 @@
 clearvars;
 clc;
-rng(0);
+rng({{ random_seed }});
 
 %% Add Packages
-addpath(genpath('../../../src/rlmcmc/'));
+addpath(genpath('../../../../src/rlmcmc/'));
 
 %% Add Log Target PDF
-lib_super_path = "../../trails/{{ share_name }}";
+lib_super_path = "../../../trails/{{ share_name }}";
 
 add_log_target_pdf_lib(lib_super_path);
 add_lib_path(lib_super_path);
@@ -60,9 +60,10 @@ save("pretrain_sample.mat", "pretrain_sample", '-v7.3');
 save("trainingInfo.mat", "trainingInfo", '-v7.3');
 
 %% Simulation
-%env_sim = RLMHEnv(log_target_pdf, mu, mu, Sigma);
+initial_sample_sim = env.store_accepted_sample{end};
+env_sim = RLMHEnv(log_target_pdf, initial_sample_sim, mu, Sigma);
 
-%simOptions = rlSimulationOptions(MaxSteps=50000);
-%experience = sim(env_sim, agent, simOptions);
-%save_store(env_sim, 'sim');
-%save("experience.mat", "experience", '-v7.3');
+simOptions = rlSimulationOptions(MaxSteps=5000);
+experience = sim(env_sim, agent, simOptions);
+save_store(env_sim, 'sim');
+save("experience.mat", "experience", '-v7.3');

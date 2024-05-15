@@ -35,10 +35,10 @@ plt.rcParams["axes.formatter.use_mathtext"] = True
 
 # Define the type of the Extractor functions
 ExtractorModel = Callable[[str, str], None]
-ExtractorResult = Callable[[str, str, str, str, str], None]
-ExtractorBaseline = Callable[[str, str, str, str, str, str, str], None]
-ExtractorMALA = Callable[[str, str, str, str, str, str], None]
-ExtractorNUTS = Callable[[str, str, str, str, str, str], None]
+ExtractorResult = Callable[[str, str, int, str, str, str], None]
+ExtractorBaseline = Callable[[str, str, int, str, str, str, str, str], None]
+ExtractorMALA = Callable[[str, str, int, str, str, str, str], None]
+ExtractorNUTS = Callable[[str, str, int, str, str, str, str], None]
 
 ExtractorMakeType = Union[
     ExtractorModel, ExtractorResult, ExtractorBaseline, ExtractorMALA, ExtractorNUTS
@@ -304,6 +304,7 @@ class Extractor:
         self,
         model_name: str,
         save_root_path: str = "results",
+        random_seed: int = 0,
         config_path: str = os.path.join("template", "config.toml"),
         learning_template_path: str = os.path.join("template", "template.learning.m"),
         learning_file_name: str = "learning.m",
@@ -326,7 +327,7 @@ class Extractor:
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_root_path))
         learning_matlab_temp = env.get_template(template_file_name)
         learning_matlab_temp_out = learning_matlab_temp.render(
-            share_name=share_name, am_rate=am_rate
+            share_name=share_name, am_rate=am_rate, random_seed=random_seed
         )
         with open(os.path.join(save_dir, learning_file_name), "w") as f:
             f.write(learning_matlab_temp_out)
@@ -337,22 +338,16 @@ class Extractor:
         self,
         model_name: str,
         save_root_path: str = "baselines",
+        random_seed: int = 0,
         baseline_template_path: str = os.path.join("template", "template.baseline.m"),
         baseline_file_name: str = "baseline.m",
         config_path: str = os.path.join("template", "config.toml"),
-        results_root_path: str = os.path.join("results"),
-        learning_file_name: str = "learning.m",
+        shell_template_path: str = os.path.join("template", "template.run-baseline.sh"),
+        shell_script_path: str = "run-baseline.sh"
     ) -> None:
         # Load Configuration
         config_dict = toml.load(config_path)
         am_rate = config_dict[model_name]["am_rate"]
-
-        learning_path = os.path.join(results_root_path, model_name, learning_file_name)
-
-        with open(learning_path, "r") as f:
-            learning_string = f.read()
-            warm_up_rate = re.search(r"am_rate = (.+);", learning_string).group(1)
-            am_rate = eval(warm_up_rate)
 
         share_name = model_name.replace("-", "_")
 
@@ -368,10 +363,16 @@ class Extractor:
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_root_path))
         baseline_matlab_temp = env.get_template(template_file_name)
         baseline_matlab_temp_out = baseline_matlab_temp.render(
-            share_name=share_name, am_rate=am_rate
+            share_name=share_name, am_rate=am_rate, random_seed=random_seed
         )
         with open(os.path.join(save_dir, baseline_file_name), "w") as f:
             f.write(baseline_matlab_temp_out)
+
+        # Copy run-baseline.sh
+        shutil.copy(
+            shell_template_path,
+            os.path.join(save_dir, shell_script_path),
+        )
 
         return None
 
@@ -379,6 +380,7 @@ class Extractor:
         self,
         model_name: str,
         save_root_path: str = "baselines",
+        random_seed: int = 0,
         mala_template_path: str = os.path.join("template", "template.mala.py"),
         mala_file_name: str = "mala.py",
         shell_template_path: str = os.path.join("template", "template.run-mala.sh"),
@@ -395,7 +397,7 @@ class Extractor:
 
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_root_path))
         mala_temp = env.get_template(template_file_name)
-        mala_temp_out = mala_temp.render(model_name=model_name)
+        mala_temp_out = mala_temp.render(model_name=model_name, random_seed=random_seed)
         with open(os.path.join(save_dir, mala_file_name), "w") as f:
             f.write(mala_temp_out)
 
@@ -411,6 +413,7 @@ class Extractor:
         self,
         model_name: str,
         save_root_path: str = "baselines",
+        random_seed: int = 0,
         nuts_template_path: str = os.path.join("template", "template.nuts.py"),
         nuts_file_name: str = "nuts.py",
         shell_template_path: str = os.path.join("template", "template.run-nuts.sh"),
@@ -427,7 +430,7 @@ class Extractor:
 
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_root_path))
         nuts_temp = env.get_template(template_file_name)
-        nuts_temp_out = nuts_temp.render(model_name=model_name)
+        nuts_temp_out = nuts_temp.render(model_name=model_name, random_seed=random_seed)
         with open(os.path.join(save_dir, nuts_file_name), "w") as f:
             f.write(nuts_temp_out)
 
@@ -701,7 +704,7 @@ class Reader:
             data = np.array(mat["data"])
         except NotImplementedError:
             mat_t = h5py.File(
-                os.path.join(root_path, model_name, "train_store_accepted_sample.mat")
+                os.path.join(root_path, model_name, file_name)
             )
             data_t = np.array(mat_t["data"])
             data = np.transpose(data_t)
@@ -713,7 +716,7 @@ class Reader:
         model_name: str,
         root_path: str = "baselines",
         file_name: str = "am_samples.mat",
-        calculated_sample_size: int = 50_000,
+        calculated_sample_size: int = 5_000,
     ) -> NDArray[np.float64]:
         try:
             mat_t = loadmat(os.path.join(root_path, model_name, file_name))
@@ -749,7 +752,7 @@ class Evaluator:
     def result(
         model_name: str,
         results_root_path: str = "results",
-        results_sample_file_name: str = "train_store_accepted_sample.mat",
+        results_sample_file_name: str = "sim_store_accepted_sample.mat",
         batch_size: int = 1_000,
     ) -> Tuple[int, float, float, float]:
         model = Toolbox.generate_model(model_name)
@@ -777,7 +780,7 @@ class Evaluator:
         model_name: str,
         baselines_root_path: str = "baselines",
         baselines_sample_file_name: str = "am_samples.mat",
-        calculated_sample_size: int = 50_000,
+        calculated_sample_size: int = 5_000,
         batch_size: int = 1_000,
     ) -> Tuple[int, float, float, float]:
         model = Toolbox.generate_model(model_name)
@@ -922,20 +925,25 @@ class PlotESJD:
         sample_dim: int,
         window_size: int = 5,
         episode_size: int = 500,
+        calculated_sample_size: int = 5_000,
         save_path: str = os.path.join("pic", "esjd"),
         results_root_path: str = "results",
+        results_file_name: str = "sim_store_accepted_sample.mat",
         baselines_root_path: str = "baselines",
+        baselines_file_name: str = "am_samples.mat",
         nuts_root_path: str = "baselines",
+        nuts_file_name: str = "nuts.npy",
         mala_root_path: str = "baselines",
+        mala_file_name: str = "mala.npy"
     ) -> None:
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
         # Extract Data
-        results_data = Reader.result(model_name, results_root_path)
-        baselines_data = Reader.baseline(model_name, baselines_root_path)
-        mala_data = Reader.mala(model_name, mala_root_path)
-        nuts_data = Reader.nuts(model_name, nuts_root_path)
+        results_data = Reader.result(model_name, results_root_path, results_file_name)
+        baselines_data = Reader.baseline(model_name, baselines_root_path, baselines_file_name, calculated_sample_size)
+        mala_data = Reader.mala(model_name, mala_root_path, mala_file_name)
+        nuts_data = Reader.nuts(model_name, nuts_root_path, nuts_file_name)
 
         # Calculate Expected Square Jump Distance
         (
@@ -979,7 +987,7 @@ class PlotESJD:
         sample_dim: int,
         window_size: int = 5,
         episode_size: int = 500,
-        calculated_sample_size: int = 50_000,
+        calculated_sample_size: int = 5_000,
         save_path: str = os.path.join("pic", "esjd_rb"),
         results_root_path: str = "results",
         results_file_name: str = "train_store_reward.mat",
@@ -1183,9 +1191,9 @@ class Sampler:
 
     def mala(
         self,
-        epoch: List[int] = 10 * [1_000] + [50_000],
+        epoch: List[int] = 60 * [1_000] + [5_000],
         h0: float = 0.1,
-        alpha: List[float] = 11 * [0.3],
+        alpha: List[float] = 61 * [0.3],
         x0: Union[None, float, np.float64, NDArray[np.float64]] = None,
     ):
         model = Toolbox.generate_model(self.model_name, self.dbpath)
@@ -1232,7 +1240,7 @@ class Sampler:
             sys.stderr = io.StringIO()
 
         nuts = stan.build(stan_code, data=dict_data)
-        fit = nuts.sample(num_chains=1, num_warmup=10_000, num_samples=50_000)
+        fit = nuts.sample(num_chains=1, num_warmup=60_000, num_samples=5_000)
 
         if not verbose:
             sys.stdout = stdout
