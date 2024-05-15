@@ -516,8 +516,9 @@ class Toolbox:
         # Models with a Gold Standard
         gs_models = list(set(pos).difference(set(no_gs)))
 
-        # Delete "one_comp_mm_elim_abs-one_comp_mm_elim_abs"
+        # Delete Error Models
         gs_models.remove("one_comp_mm_elim_abs-one_comp_mm_elim_abs")
+        gs_models.remove("hudson_lynx_hare-lotka_volterra")
 
         return gs_models
 
