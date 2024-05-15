@@ -32,15 +32,8 @@ for dir in */; do
         echo -ne "\r[$bar] ${percent}% - Processing ${dir%/}"
 
         cd "$dir"
-        start=$(date +%s)
-
         matlab -nodisplay -nosplash -nojvm < $runfile > learning_output.txt 2>&1
-
-        end=$(date +%s)
         cd ..
-
-        runtime=$((end - start))
-        echo "${dir%/},$runtime" >> ../${root_dir%/}_runtime.txt
     fi
 done
 
@@ -49,3 +42,6 @@ done
 url="https://gotify.greenlimes.top"
 token="AEqrtS7SCsWFb6J"
 curl "$url/message?token=$token" -F "title=${root_dir%/} Finished" -F "message=${root_dir%/} Finished" -F "priority=5" --ssl-no-revoke
+
+echo "Finishing Job"
+exit 0
