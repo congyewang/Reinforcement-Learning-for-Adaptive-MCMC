@@ -28,4 +28,4 @@ for subdir in "$BASELINES_DIR"/*; do
 done
 
 echo "Finishing job"
-echo 0
+exit 0

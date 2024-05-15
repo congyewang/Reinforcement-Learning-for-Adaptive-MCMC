@@ -13,4 +13,4 @@ for subdir in "$parent_dir"/*/; do
 done
 
 echo "Finishing Job"
-echo 0
+exit 0

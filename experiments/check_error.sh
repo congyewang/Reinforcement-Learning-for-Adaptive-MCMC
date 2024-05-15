@@ -11,3 +11,5 @@ for dir in "${target_directory}"/*/; do
   fi
 done
 
+echo Finishing job
+exit 0
