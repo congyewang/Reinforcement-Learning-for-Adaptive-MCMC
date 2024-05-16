@@ -1233,8 +1233,6 @@ class MALA:
 
     def mala_adapt(
         self,
-        fp: Callable[[Union[float, NDArray[np.float64]]], Union[float, np.float64]],
-        fg: Callable[[NDArray[np.float64]], NDArray[np.float64]],
         x0: NDArray[np.float64],
         h0: float,
         c0: NDArray[np.float64],
@@ -1282,7 +1280,9 @@ class MALA:
         # First epoch
         h = h0
         c = c0
-        x[0], g[0], p[0], a[0], r[0] = self.mala(fp, fg, x0, h, c, epoch[0], False)
+        x[0], g[0], p[0], a[0], r[0] = self.mala(
+            self.fp, self.fg, x0, h, c, epoch[0], False
+        )
 
         for i in tqdm(range(1, n_ep), disable=(not pb)):
             # Adapt preconditioning matrix
@@ -1336,7 +1336,7 @@ class Sampler:
         c0 = np.eye(sample_dim)
         mala_sampler = MALA(log_p, grad_log_p)
         x, _, _, _, _, _, a = mala_sampler.mala_adapt(
-            log_p, grad_log_p, x0, h0, c0, alpha, epoch, pb=self.verbose
+            x0, h0, c0, alpha, epoch, pb=self.verbose
         )
 
         return x[-1], a[-1]
