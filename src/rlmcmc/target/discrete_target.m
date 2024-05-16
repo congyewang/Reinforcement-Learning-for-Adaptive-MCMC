@@ -1,4 +1,4 @@
-function res = discrete_log_pmf(x)
+function res = discrete_target(x)
 
 if x >= -4 && x <= -3
     res = log(0.25);

@@ -1,4 +1,4 @@
-function logpdf = skew_normal_logpdf(x, alpha, mu, var)
+function logpdf = skew_normal_target(x, alpha, mu, var)
 
 if nargin < 2
     alpha = 2;

@@ -93,10 +93,10 @@ def main():
 
     for j in trange(round_num):
         for k in gs_model_name_list:
-            Extractor.make("result")(k, os.path.join("results", f"round{j}"), j)
-            Extractor.make("baseline")(k, os.path.join("baselines", f"round{j}"), j)
+            # Extractor.make("result")(k, os.path.join("results", f"round{j}"), j)
+            # Extractor.make("baseline")(k, os.path.join("baselines", f"round{j}"), j)
             Extractor.make("mala")(k, os.path.join("baselines", f"round{j}"), j)
-            Extractor.make("nuts")(k, os.path.join("baselines", f"round{j}"), j)
+            # Extractor.make("nuts")(k, os.path.join("baselines", f"round{j}"), j)
 
 
 if __name__ == "__main__":

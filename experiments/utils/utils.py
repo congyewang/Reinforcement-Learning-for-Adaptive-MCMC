@@ -343,7 +343,7 @@ class Extractor:
         baseline_file_name: str = "baseline.m",
         config_path: str = os.path.join("template", "config.toml"),
         shell_template_path: str = os.path.join("template", "template.run-baseline.sh"),
-        shell_script_path: str = "run-baseline.sh"
+        shell_script_path: str = "run-baseline.sh",
     ) -> None:
         # Load Configuration
         config_dict = toml.load(config_path)
@@ -704,9 +704,7 @@ class Reader:
             mat = loadmat(os.path.join(root_path, model_name, file_name))
             data = np.array(mat["data"])
         except NotImplementedError:
-            mat_t = h5py.File(
-                os.path.join(root_path, model_name, file_name)
-            )
+            mat_t = h5py.File(os.path.join(root_path, model_name, file_name))
             data_t = np.array(mat_t["data"])
             data = np.transpose(data_t)
 
@@ -741,11 +739,22 @@ class Reader:
 
     @staticmethod
     def mala(
-        model_name: str, root_path: str = "baselines", file_name: str = "mala.npy"
+        model_name: str,
+        root_path: str = "baselines",
+        file_name: str = "mala.npy",
+        data_type: str = "samples",
     ) -> NDArray[np.float64]:
         data = np.load(os.path.join(root_path, model_name, file_name))
 
-        return data
+        match data_type:
+            case "samples":
+                return data["samples"]
+            case "rewards":
+                return data["rewards"]
+            case _:
+                raise ValueError(
+                    "Invalid data type. Please choose from 'samples' or 'rewards'."
+                )
 
 
 class Evaluator:
@@ -754,12 +763,14 @@ class Evaluator:
         model_name: str,
         results_root_path: str = "results",
         results_sample_file_name: str = "sim_store_accepted_sample.mat",
+        results_reward_file_name: str = "sim_store_reward.mat",
         batch_size: int = 1_000,
     ) -> Tuple[int, float, float, float]:
         model = Toolbox.generate_model(model_name)
         gs_unconstrain = Toolbox.gold_standard(model_name)
 
         data = Reader.result(model_name, results_root_path, results_sample_file_name)
+        reward = Reader.result(model_name, results_root_path, results_reward_file_name)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         gs_torch = torch.from_numpy(gs_unconstrain).to(device)
@@ -769,7 +780,7 @@ class Evaluator:
         mmd = Toolbox.batched_mmd(
             gs_torch, data_torch, batch_size=batch_size, sigma=lengthscale
         )
-        ess = multiESS(data)
+        ess = np.exp(np.mean(reward))
         esjd = Toolbox.expected_square_jump_distance(data)
 
         param_unc_num = model.param_unc_num()
@@ -781,6 +792,7 @@ class Evaluator:
         model_name: str,
         baselines_root_path: str = "baselines",
         baselines_sample_file_name: str = "am_samples.mat",
+        baselines_reward_file_name: str = "am_rewards.mat",
         calculated_sample_size: int = 5_000,
         batch_size: int = 1_000,
     ) -> Tuple[int, float, float, float]:
@@ -793,6 +805,12 @@ class Evaluator:
             baselines_sample_file_name,
             calculated_sample_size,
         )
+        reward = Reader.baseline(
+            model_name,
+            baselines_root_path,
+            baselines_reward_file_name,
+            calculated_sample_size,
+        )
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         gs_torch = torch.from_numpy(gs_unconstrain).to(device)
@@ -803,7 +821,7 @@ class Evaluator:
             gs_torch, data_torch, batch_size=batch_size, sigma=lengthscale
         )
         ess = multiESS(data)
-        esjd = Toolbox.expected_square_jump_distance(data)
+        esjd = np.exp(np.mean(reward))
 
         param_unc_num = model.param_unc_num()
 
@@ -847,6 +865,9 @@ class Evaluator:
         gs_unconstrain = Toolbox.gold_standard(model_name)
 
         data = Reader.mala(model_name, mala_root_path, mala_sample_file_name)
+        reward = Reader.mala(
+            model_name, mala_root_path, mala_sample_file_name, "rewards"
+        )
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         gs_torch = torch.from_numpy(gs_unconstrain).to(device)
@@ -857,7 +878,7 @@ class Evaluator:
             gs_torch, data_torch, batch_size=batch_size, sigma=lengthscale
         )
         ess = multiESS(data)
-        esjd = Toolbox.expected_square_jump_distance(data)
+        esjd = np.exp(np.mean(reward))
 
         param_unc_num = model.param_unc_num()
 
@@ -925,7 +946,7 @@ class PlotESJD:
         model_name: str,
         sample_dim: int,
         window_size: int = 5,
-        episode_size: int = 500,
+        episode_size: int = 1,
         calculated_sample_size: int = 5_000,
         save_path: str = os.path.join("pic", "esjd"),
         results_root_path: str = "results",
@@ -935,14 +956,16 @@ class PlotESJD:
         nuts_root_path: str = "baselines",
         nuts_file_name: str = "nuts.npy",
         mala_root_path: str = "baselines",
-        mala_file_name: str = "mala.npy"
+        mala_file_name: str = "mala.npy",
     ) -> None:
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
         # Extract Data
         results_data = Reader.result(model_name, results_root_path, results_file_name)
-        baselines_data = Reader.baseline(model_name, baselines_root_path, baselines_file_name, calculated_sample_size)
+        baselines_data = Reader.baseline(
+            model_name, baselines_root_path, baselines_file_name, calculated_sample_size
+        )
         mala_data = Reader.mala(model_name, mala_root_path, mala_file_name)
         nuts_data = Reader.nuts(model_name, nuts_root_path, nuts_file_name)
 
@@ -983,7 +1006,7 @@ class PlotESJD:
         return None
 
     @staticmethod
-    def compare_expected_square_jump_distance_rao_blackwell(
+    def rao_blackwell(
         model_name: str,
         sample_dim: int,
         window_size: int = 5,
@@ -994,7 +1017,9 @@ class PlotESJD:
         results_file_name: str = "train_store_reward.mat",
         baselines_root_path: str = "baselines",
         baselines_file_name: str = "am_rewards.mat",
-        log_scale: bool = False,
+        mala_root_path: str = "baselines",
+        mala_file_name: str = "mala.npy",
+        log_scale: bool = True,
     ) -> None:
         if not os.path.exists(save_path):
             os.makedirs(save_path)
@@ -1003,24 +1028,32 @@ class PlotESJD:
         baselines_data = Reader.baseline(
             model_name, baselines_root_path, baselines_file_name, calculated_sample_size
         )
+        mala_data = Reader.mala(model_name, mala_root_path, mala_file_name, "rewards")
 
         (
             results_average_episode_reward_moving_window,
             baselines_average_episode_reward_moving_window,
+            mala_average_episode_reward_moving_window,
         ) = (
             Toolbox.moving_average(
                 np.mean(i.reshape(-1, episode_size), axis=1)
-                for i in [results_data, baselines_data]
+                for i in [results_data, baselines_data, mala_data]
             ),
             window_size,
         )
 
-        if log_scale:
-            results_average_episode_reward_moving_window = np.log(
-                results_average_episode_reward_moving_window
-            )
-            baselines_average_episode_reward_moving_window = np.log(
-                baselines_average_episode_reward_moving_window
+        if not log_scale:
+            (
+                results_average_episode_reward_moving_window,
+                baselines_average_episode_reward_moving_window,
+                mala_average_episode_reward_moving_window,
+            ) = (
+                np.exp(i)
+                for i in [
+                    results_average_episode_reward_moving_window,
+                    baselines_average_episode_reward_moving_window,
+                    mala_average_episode_reward_moving_window,
+                ]
             )
 
         # Plot
@@ -1040,8 +1073,46 @@ class PlotESJD:
 
 
 class MALA:
-    @staticmethod
+    def __init__(
+        self,
+        unsafe_fp: Callable[
+            [Union[float, NDArray[np.float64]]], Union[float, np.float64]
+        ],
+        unsafe_fg: Callable[[NDArray[np.float64]], NDArray[np.float64]],
+    ) -> None:
+        self.unsafe_fp = unsafe_fp
+        self.unsafe_fg = unsafe_fg
+
+    def fp(self, x: NDArray[np.float64]) -> Union[float, np.float64]:
+        """
+        Log-density function of the target.
+        """
+        try:
+            res = self.unsafe_fp(x)
+        except RuntimeError as e:
+            if (
+                re.search("normal_lpdf: Scale parameter is 0", str(e)).group(0)
+                is not None
+            ):
+                res = -np.inf
+        return res
+
+    def fg(self, x: NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        Gradient function of the log target.
+        """
+        try:
+            res = self.unsafe_fg(x)
+        except RuntimeError as e:
+            if (
+                re.search("normal_lpdf: Scale parameter is 0", str(e)).group(0)
+                is not None
+            ):
+                res = np.full_like(x, np.nan)
+        return res
+
     def mala(
+        self,
         fp: Callable[[Union[float, NDArray[np.float64]]], Union[float, np.float64]],
         fg: Callable[[NDArray[np.float64]], NDArray[np.float64]],
         x0: NDArray[np.float64],
@@ -1050,26 +1121,31 @@ class MALA:
         n: int,
         pb: bool = True,
     ) -> Tuple[
-        NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], NDArray[Any]
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[Any],
+        NDArray[np.float64],
     ]:
         """
         Sample from a target distribution using the Metropolis-adjusted Langevin
         algorithm.
 
         Args:
-        fp - handle to the log-density function of the target.
-        fg - handle to the gradient function of the log target.
-        x0 - vector of the starting values of the Markov chain.
-        h  - step-size parameter.
-        c  - preconditioning matrix.
-        n  - number of MCMC iterations.
-        pb - a progress bar is shown if set to True (default).
+            fp - handle to the log-density function of the target.
+            fg - handle to the gradient function of the log target.
+            x0 - vector of the starting values of the Markov chain.
+            h  - step-size parameter.
+            c  - preconditioning matrix.
+            n  - number of MCMC iterations.
+            pb - a progress bar is shown if set to True (default).
 
         Returns:
-        x  - matrix of generated points.
-        g  - matrix of gradients of the log target at X.
-        p  - vector of log-density values of the target at X.
-        a  - binary vector indicating whether a move is accepted.
+            x  - matrix of generated points.
+            g  - matrix of gradients of the log target at X.
+            p  - vector of log-density values of the target at X.
+            a  - binary vector indicating whether a move is accepted.
+            r  - vector of rewards.
         """
 
         # Initialise the chain
@@ -1078,6 +1154,7 @@ class MALA:
         g = np.empty((n, d))
         p = np.empty(n)
         a = np.zeros(n, dtype=bool)
+        r = np.empty(n)
         x[0] = x0
         g[0] = fg(x0)
         p[0] = fp(x0)
@@ -1094,8 +1171,24 @@ class MALA:
             py = fp(y)
             gy = fg(y)
             my = y + hh / 2 * np.dot(c, gy)
-            qx = multivariate_normal.logpdf(x[i - 1], my, s)
-            qy = multivariate_normal.logpdf(y, mx, s)
+
+            try:
+                qx = multivariate_normal.logpdf(x[i - 1], my, s)
+            except np.linalg.LinAlgError:
+                try:
+                    np.linalg.cholesky(s)
+                except np.linalg.LinAlgError:
+                    raise
+                qx = multivariate_normal.logpdf(x[i - 1], my, s, allow_singular=True)
+            try:
+                qy = multivariate_normal.logpdf(y, mx, s)
+            except np.linalg.LinAlgError:
+                try:
+                    np.linalg.cholesky(s)
+                except np.linalg.LinAlgError:
+                    raise
+                qy = multivariate_normal.logpdf(y, mx, s, allow_singular=True)
+
             acc_pr = (py + qx) - (p[i - 1] + qy)
 
             # Accept with probability acc_pr
@@ -1109,10 +1202,13 @@ class MALA:
                 g[i] = g[i - 1]
                 p[i] = p[i - 1]
 
-        return (x, g, p, a)
+            # Reward
+            r[i] = 2 * np.log(np.linalg.norm(x[i - 1] - y, 2)) + acc_pr
 
-    @staticmethod
+        return (x, g, p, a, r)
+
     def mala_adapt(
+        self,
         fp: Callable[[Union[float, NDArray[np.float64]]], Union[float, np.float64]],
         fg: Callable[[NDArray[np.float64]], NDArray[np.float64]],
         x0: NDArray[np.float64],
@@ -1157,11 +1253,12 @@ class MALA:
         g = n_ep * [None]
         p = n_ep * [None]
         a = n_ep * [None]
+        r = n_ep * [None]
 
         # First epoch
         h = h0
         c = c0
-        x[0], g[0], p[0], a[0] = MALA.mala(fp, fg, x0, h, c, epoch[0], False)
+        x[0], g[0], p[0], a[0], r[0] = self.mala(fp, fg, x0, h, c, epoch[0], False)
 
         for i in tqdm(range(1, n_ep), disable=(not pb)):
             # Adapt preconditioning matrix
@@ -1174,9 +1271,11 @@ class MALA:
 
             # Next epoch
             x0_new = x[i - 1][-1]
-            x[i], g[i], p[i], a[i] = MALA.mala(fp, fg, x0_new, h, c, epoch[i], False)
+            x[i], g[i], p[i], a[i], r[i] = self.mala(
+                self.fp, self.fg, x0_new, h, c, epoch[i], False
+            )
 
-        return (x, g, p, a, h, c)
+        return (x, g, p, a, h, c, r)
 
 
 class Sampler:
@@ -1211,11 +1310,12 @@ class Sampler:
                     break
 
         c0 = np.eye(sample_dim)
-        x, _, _, _, _, _ = MALA.mala_adapt(
+        mala_sampler = MALA(log_p, grad_log_p)
+        x, _, _, _, _, _, a = mala_sampler.mala_adapt(
             log_p, grad_log_p, x0, h0, c0, alpha, epoch, pb=self.verbose
         )
 
-        return x[-1]
+        return x[-1], a[-1]
 
     def nuts(self):
         # Model Preparation
