@@ -989,11 +989,21 @@ class PlotESJD:
         )
 
         # Plot
+        step_scale = np.arange(
+            0,
+            episode_size * len(results_average_episode_reward_moving_window),
+            episode_size,
+        )
+
         plt.figure()
-        plt.plot(results_average_episode_reward_moving_window, color="#686789")
-        plt.plot(baselines_average_episode_reward_moving_window, color="#B77F70")
-        plt.plot(nuts_average_episode_reward_moving_window, color="#B0B1B6")
-        plt.plot(mala_average_episode_reward_moving_window, color="#91AD9E")
+        plt.plot(
+            step_scale, results_average_episode_reward_moving_window, color="#686789"
+        )
+        plt.plot(
+            step_scale, baselines_average_episode_reward_moving_window, color="#B77F70"
+        )
+        plt.plot(step_scale, mala_average_episode_reward_moving_window, color="#91AD9E")
+        plt.plot(step_scale, nuts_average_episode_reward_moving_window, color="#B0B1B6")
         plt.xlabel(r"$\mathrm{Episode}$", fontsize=17)
         plt.ylabel(r"$\|x_n - x_{n+1}\|$", fontsize=17)
         plt.title(
@@ -1057,16 +1067,30 @@ class PlotESJD:
             )
 
         # Plot
+        step_scale = np.arange(
+            0,
+            episode_size * len(results_average_episode_reward_moving_window),
+            episode_size,
+        )
+
         plt.figure()
-        plt.plot(results_average_episode_reward_moving_window, color="#686789")
-        plt.plot(baselines_average_episode_reward_moving_window, color="#B77F70")
-        plt.xlabel(r"$\mathrm{Episode}$", fontsize=17)
-        plt.ylabel(r"$\|x_n - x_{n+1}\|$", fontsize=17)
+        plt.plot(
+            step_scale, results_average_episode_reward_moving_window, color="#686789"
+        )
+        plt.plot(
+            step_scale, baselines_average_episode_reward_moving_window, color="#B77F70"
+        )
+        plt.plot(step_scale, mala_average_episode_reward_moving_window, color="#91AD9E")
+        plt.xlabel(r"$n$", fontsize=17)
+        if log_scale:
+            plt.ylabel(r"$\log(\|x_n - x_{n+1}\|)$", fontsize=17)
+        else:
+            plt.ylabel(r"$\|x_n - x_{n+1}\|$", fontsize=17)
         plt.title(
             "$\mathrm{{{0}}} ({1}D)$".format(model_name.replace("_", "\_"), sample_dim),
             fontsize=17,
         )
-        plt.savefig(os.path.join(save_path, f"{model_name}_reward_rb.pdf"))
+        plt.savefig(os.path.join(save_path, f"{model_name}_reward.pdf"))
         plt.close()
 
         return None
