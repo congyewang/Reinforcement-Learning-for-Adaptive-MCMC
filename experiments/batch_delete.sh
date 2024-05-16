@@ -15,12 +15,12 @@ for subdir in "$BASELINES_DIR"/*; do
             if [ -d "$subsubdir" ]; then
                 echo "Processing: $subsubdir"
 
-                rm -fv "$subsubdir"slurm-*.out
-                rm -fv "$subsubdir"mala.npy
-                rm -fv "$subsubdir"mala.py
-                rm -fv "$subsubdir"run-mala.sh
-                rm -fv "$subsubdir"nuts.py
-                rm -fv "$subsubdir"run-nuts.sh
+                rm -fv "$subsubdir"/slurm-*.out
+                rm -fv "$subsubdir"/mala.npy
+                rm -fv "$subsubdir"/mala.py
+                rm -fv "$subsubdir"/run-mala.sh
+                rm -fv "$subsubdir"/nuts.py
+                rm -fv "$subsubdir"/run-nuts.sh
             fi
         done
     fi
