@@ -13,14 +13,14 @@ for subdir in "$BASELINES_DIR"/*; do
     if [ -d "$subdir" ]; then
         for subsubdir in "$subdir"/*; do
             if [ -d "$subsubdir" ]; then
-                if [ -f "$subsubdir/run-nuts.sh" ]; then
+                if [ -f "$subsubdir/run-mala.sh" ]; then
                     cd "$subsubdir"
                     echo "Update shell script in $subsubdir Dir"
-                    sbatch run-baseline.sh
+                    # sbatch run-baseline.sh
                     sbatch run-mala.sh
                     cd -
                 else
-                    echo "No run-nuts.sh file in Dir $subsubdir"
+                    echo "No run-mala.sh file in Dir $subsubdir"
                 fi
             fi
         done
