@@ -1,16 +1,30 @@
 #!/bin/bash
 
-parent_dir="./baselines"
 
-for subdir in "$parent_dir"/*/; do
+BASELINES_DIR="./baselines"
+
+
+if [ ! -d "$BASELINES_DIR" ]; then
+    echo "Dir $BASELINES_DIR does not exist."
+    exit 1
+fi
+
+for subdir in "$BASELINES_DIR"/*; do
     if [ -d "$subdir" ]; then
-        echo "Processing: $subdir"
+        for subsubdir in "$subdir"/*; do
+            if [ -d "$subsubdir" ]; then
+                echo "Processing: $subsubdir"
 
-        rm -fv "$subdir"slurm-*.out
-        rm -fv "$subdir"nuts.py
-        rm -fv "$subdir"run-nuts.sh
+                rm -fv "$subsubdir"slurm-*.out
+                rm -fv "$subsubdir"mala.npy
+                rm -fv "$subsubdir"mala.py
+                rm -fv "$subsubdir"run-mala.sh
+                rm -fv "$subsubdir"nuts.py
+                rm -fv "$subsubdir"run-nuts.sh
+            fi
+        done
     fi
 done
 
-echo "Finishing Job"
+echo "Finishing job"
 exit 0
