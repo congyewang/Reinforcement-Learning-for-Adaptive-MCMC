@@ -1246,6 +1246,7 @@ class MALA:
         List[NDArray[np.float64]],
         List[float],
         List[NDArray[np.float64]],
+        List[NDArray[np.float64]]
     ]:
         """
         Sample from a target distribution using an adaptive version of the
@@ -1268,6 +1269,7 @@ class MALA:
         a     - list of binary vectors indicating whether a move is accepted.
         h     - tuned step-size.
         c     - tuned preconditioning matrix.
+        r     - list of vector of rewards.
         """
 
         n_ep = len(epoch)
