@@ -946,7 +946,7 @@ class PlotESJD:
         model_name: str,
         sample_dim: int,
         window_size: int = 5,
-        episode_size: int = 1,
+        episode_size: int = 500,
         calculated_sample_size: int = 5_000,
         save_path: str = os.path.join("pic", "esjd"),
         results_root_path: str = "results",

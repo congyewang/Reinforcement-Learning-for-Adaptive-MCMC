@@ -16,7 +16,7 @@ for subdir in "$BASELINES_DIR"/*; do
                 if [ -f "$subsubdir/run-mala.sh" ]; then
                     cd "$subsubdir"
                     echo "Update shell script in $subsubdir Dir"
-                    # sbatch run-baseline.sh
+                    sbatch run-baseline.sh
                     sbatch run-mala.sh
                     cd -
                 else
