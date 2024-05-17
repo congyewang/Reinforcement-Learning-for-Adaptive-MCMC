@@ -717,15 +717,19 @@ class Reader:
         file_name: str = "am_samples.mat",
         calculated_sample_size: int = 5_000,
     ) -> NDArray[np.float64]:
+
+        data_name_with_ext = os.path.basename(file_name)
+        data_name = os.path.splitext(data_name_with_ext)[0]
+
         try:
             mat_t = loadmat(os.path.join(root_path, model_name, file_name))
-            data_all_t = np.array(mat_t["am_samples"])
+            data_all_t = np.array(mat_t[data_name])
             data_all = np.transpose(data_all_t)
         except NotImplementedError:
             mat = h5py.File(os.path.join(root_path, model_name, file_name))
-            data_all = np.array(mat["am_samples"])
+            data_all = np.array(mat[data_name])
 
-        data = data_all[-calculated_sample_size:]
+        data = data_all[:, -calculated_sample_size:]
 
         return data
 
@@ -1046,10 +1050,9 @@ class PlotESJD:
             mala_average_episode_reward_moving_window,
         ) = (
             Toolbox.moving_average(
-                np.mean(i.reshape(-1, episode_size), axis=1)
-                for i in [results_data, baselines_data, mala_data]
-            ),
-            window_size,
+                (np.mean(i.reshape(-1, episode_size), axis=1)), window_size
+            )
+            for i in [results_data, baselines_data, mala_data]
         )
 
         if not log_scale:
@@ -1114,11 +1117,27 @@ class MALA:
         try:
             res = self.unsafe_fp(x)
         except RuntimeError as e:
-            if (
-                re.search("normal_lpdf: Scale parameter is 0", str(e)).group(0)
-                is not None
-            ):
-                res = -np.inf
+            str_e = str(e)
+            match str_e:
+                case (
+                    normal_lpdf_0_error
+                ) if "normal_lpdf: Scale parameter is 0" in str_e:
+                    res = -np.inf
+                case (
+                    normal_id_glm_lpdf_scale_inf_error
+                ) if "normal_id_glm_lpdf: Scale vector is inf" in str_e:
+                    res = -np.inf
+                case (
+                    normal_lpdf_neg_nan_error
+                ) if "normal_lpdf: Scale parameter[1] is -nan" in str_e:
+                    res = -np.inf
+                case (
+                    normal_lpdf_inf_error
+                ) if "normal_lpdf: Location parameter is inf, but must be finite" in str_e:
+                    res = -np.inf
+                case _:
+                    raise e
+
         return res
 
     def fg(self, x: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -1128,11 +1147,26 @@ class MALA:
         try:
             res = self.unsafe_fg(x)
         except RuntimeError as e:
-            if (
-                re.search("normal_lpdf: Scale parameter is 0", str(e)).group(0)
-                is not None
-            ):
-                res = np.full_like(x, np.nan)
+            str_e = str(e)
+            match str_e:
+                case (
+                    normal_lpdf_0_error
+                ) if "normal_lpdf: Scale parameter is 0" in str_e:
+                    res = np.full_like(x, np.nan)
+                case (
+                    normal_id_glm_lpdf_scale_inf_error
+                ) if "normal_id_glm_lpdf: Scale vector is inf" in str_e:
+                    res = np.full_like(x, np.nan)
+                case (
+                    normal_lpdf_neg_nan_error
+                ) if "normal_lpdf: Scale parameter[1] is -nan" in str_e:
+                    res = np.full_like(x, np.nan)
+                case (
+                    normal_lpdf_inf_error
+                ) if "normal_lpdf: Location parameter is inf, but must be finite" in str_e:
+                    res = np.full_like(x, np.nan)
+                case _:
+                    raise e
         return res
 
     def mala(
@@ -1246,7 +1280,7 @@ class MALA:
         List[NDArray[np.float64]],
         List[float],
         List[NDArray[np.float64]],
-        List[NDArray[np.float64]]
+        List[NDArray[np.float64]],
     ]:
         """
         Sample from a target distribution using an adaptive version of the
