@@ -20,9 +20,12 @@ classdef RLMHEnv < RLMHEnvBase
     end
 
     methods
-        function res = gamma_c(this, x, mu, Sigma)
+        function res = gamma_c(this, x, mu, Sigma, c)
+            if nargin < 5
+                c = 10;
+            end
             Sig_half = sqrtm(Sigma);
-            eta = norm(Sig_half \ (x - mu))^2 / 10^2;
+            eta = norm(Sig_half \ (x - mu))^2 / c^2;
 
             if eta >= 0 && eta < 0.5
                 res = 0;

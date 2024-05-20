@@ -6,11 +6,10 @@ model {
   vector[2] mu1;
   vector[2] mu2;
   matrix[2, 2] cov;
-  vector[5] log_weights;
 
-  mu1[1] = -3;
+  mu1[1] = -5;
   mu1[2] = 0;
-  mu2[1] = 3;
+  mu2[1] = 5;
   mu2[2] = 0;
   cov = diag_matrix(rep_vector(1, 2));
 

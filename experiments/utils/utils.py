@@ -519,6 +519,7 @@ class Toolbox:
         # Delete Error Models
         gs_models.remove("one_comp_mm_elim_abs-one_comp_mm_elim_abs")
         gs_models.remove("hudson_lynx_hare-lotka_volterra")
+        gs_models.remove("bball_drive_event_1-hmm_drive_1")
 
         return gs_models
 
@@ -685,12 +686,88 @@ class Toolbox:
 
     @staticmethod
     def moving_average(
-        data: NDArray[np.float64], window_size: int
+        data: NDArray[np.float64], window_size: int, mode: str = "same", axis: int = -1
     ) -> NDArray[np.float64]:
-        data_flatten = data.flatten()
-        window = np.ones(int(window_size)) / float(window_size)
+        def _moving_average_1D(
+            data: NDArray[np.float64], window_size: int, mode: str
+        ) -> NDArray[np.float64]:
+            data_flatten = data.flatten()
+            window = np.ones(int(window_size)) / float(window_size)
 
-        return np.convolve(data_flatten, window, "valid")
+            match mode:
+                case "valid":
+                    return np.convolve(data_flatten, window, "valid")
+                case "same":
+                    return np.convolve(data_flatten, window, "same")
+                case "full":
+                    return np.convolve(data_flatten, window, "full")
+                case _:
+                    raise ValueError(
+                        "Invalid mode. Choose from 'valid', 'same', or 'full'."
+                    )
+
+        result_shape = list(data.shape)
+        result_shape[axis] -= window_size - 1
+        result = np.apply_along_axis(
+            _moving_average_1D, axis=axis, arr=data, window_size=window_size, mode=mode
+        )
+        return result
+
+    @staticmethod
+    def get_rounds_mean_and_std_error(
+        data: NDArray[np.float64],
+        episode_size: int = 500,
+        window_size: int = 5,
+        round_size: int = 10,
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+
+        data_moving_average = Toolbox.moving_average(data, window_size)
+        episodes_moving_average = np.mean(
+            data_moving_average.reshape(-1, episode_size, round_size), axis=1
+        )
+
+        episodes_mean = np.mean(episodes_moving_average, axis=1)
+        episodes_std_devs = np.std(episodes_moving_average, axis=1, ddof=1)
+
+        episodes_sample_size = episodes_moving_average.shape[1]
+        episodes_std_errors = episodes_std_devs / np.sqrt(episodes_sample_size)
+
+        return episodes_mean, episodes_std_errors
+
+    @staticmethod
+    def get_evaluations_mean_and_std_error(
+        data: NDArray[np.float64],
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+
+        data_mean = np.mean(data)
+        data_std_devs = np.std(data, ddof=1)
+
+        data_sample_size = data.shape[0]
+        data_std_errors = data_std_devs / np.sqrt(data_sample_size)
+
+        return data_mean, data_std_errors
+
+    @staticmethod
+    def format_scientific(
+        mean: Union[float, np.float64], std_error: Union[float, np.float64]
+    ) -> str:
+        if mean == 0:
+            return "0.0(0.0)E0"
+
+        exponent_mean = np.floor(np.log10(np.abs(mean)))
+        mean_coefficient = mean / 10**exponent_mean
+
+        # Handle std_error = 0
+        if std_error == 0:
+            std_error_coefficient = 0.0
+        else:
+            std_error_coefficient = std_error / 10**exponent_mean
+
+        # Round to one decimal place
+        mean_coefficient = np.round(mean_coefficient, 1)
+        std_error_coefficient = np.round(std_error_coefficient, 1)
+
+        return f"{mean_coefficient}({std_error_coefficient})E{int(exponent_mean)}"
 
 
 class Reader:
@@ -767,54 +844,17 @@ class Evaluator:
         model_name: str,
         results_root_path: str = "results",
         results_sample_file_name: str = "sim_store_accepted_sample.mat",
-        results_reward_file_name: str = "sim_store_reward.mat",
+        results_reward_file_name: Union[None, str] = "sim_store_reward.mat",
         batch_size: int = 1_000,
+        mode: str = "standard",
     ) -> Tuple[int, float, float, float]:
+        if mode == "rao-blackwell" and results_reward_file_name is None:
+            raise ValueError("Please provide a reward file for Rao-Blackwell mode.")
+
         model = Toolbox.generate_model(model_name)
         gs_unconstrain = Toolbox.gold_standard(model_name)
 
         data = Reader.result(model_name, results_root_path, results_sample_file_name)
-        reward = Reader.result(model_name, results_root_path, results_reward_file_name)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        gs_torch = torch.from_numpy(gs_unconstrain).to(device)
-        data_torch = torch.from_numpy(data).to(device)
-
-        lengthscale = Toolbox.median_trick(gs_unconstrain)
-        mmd = Toolbox.batched_mmd(
-            gs_torch, data_torch, batch_size=batch_size, sigma=lengthscale
-        )
-        ess = np.exp(np.mean(reward))
-        esjd = Toolbox.expected_square_jump_distance(data)
-
-        param_unc_num = model.param_unc_num()
-
-        return (param_unc_num, esjd.item(), ess.item(), mmd.item())
-
-    @staticmethod
-    def baseline(
-        model_name: str,
-        baselines_root_path: str = "baselines",
-        baselines_sample_file_name: str = "am_samples.mat",
-        baselines_reward_file_name: str = "am_rewards.mat",
-        calculated_sample_size: int = 5_000,
-        batch_size: int = 1_000,
-    ) -> Tuple[int, float, float, float]:
-        model = Toolbox.generate_model(model_name)
-        gs_unconstrain = Toolbox.gold_standard(model_name)
-
-        data = Reader.baseline(
-            model_name,
-            baselines_root_path,
-            baselines_sample_file_name,
-            calculated_sample_size,
-        )
-        reward = Reader.baseline(
-            model_name,
-            baselines_root_path,
-            baselines_reward_file_name,
-            calculated_sample_size,
-        )
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         gs_torch = torch.from_numpy(gs_unconstrain).to(device)
@@ -825,7 +865,73 @@ class Evaluator:
             gs_torch, data_torch, batch_size=batch_size, sigma=lengthscale
         )
         ess = multiESS(data)
-        esjd = np.exp(np.mean(reward))
+
+        match mode:
+            case "standard":
+                esjd = Toolbox.expected_square_jump_distance(data)
+            case "rao-blackwell":
+                reward = Reader.result(
+                    model_name, results_root_path, results_reward_file_name
+                )
+                esjd = np.exp(np.mean(reward))
+            case _:
+                raise ValueError(
+                    "Invalid mode. Please choose from 'standard' or 'rao-blackwell'."
+                )
+
+        param_unc_num = model.param_unc_num()
+
+        return (param_unc_num, esjd.item(), ess.item(), mmd.item())
+
+    @staticmethod
+    def baseline(
+        model_name: str,
+        baselines_root_path: str = "baselines",
+        baselines_sample_file_name: str = "am_samples.mat",
+        baselines_reward_file_name: Union[None, str] = "am_rewards.mat",
+        calculated_sample_size: int = 5_000,
+        batch_size: int = 1_000,
+        mode: str = "standard",
+    ) -> Tuple[int, float, float, float]:
+        if mode == "rao-blackwell" and baselines_reward_file_name is None:
+            raise ValueError("Please provide a reward file for Rao-Blackwell mode.")
+
+        model = Toolbox.generate_model(model_name)
+        gs_unconstrain = Toolbox.gold_standard(model_name)
+
+        data = Reader.baseline(
+            model_name,
+            baselines_root_path,
+            baselines_sample_file_name,
+            calculated_sample_size,
+        )
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        gs_torch = torch.from_numpy(gs_unconstrain).to(device)
+        data_torch = torch.from_numpy(data).to(device)
+
+        lengthscale = Toolbox.median_trick(gs_unconstrain)
+        mmd = Toolbox.batched_mmd(
+            gs_torch, data_torch, batch_size=batch_size, sigma=lengthscale
+        )
+        ess = multiESS(data)
+
+        match mode:
+            case "standard":
+                esjd = Toolbox.expected_square_jump_distance(data)
+            case "rao-blackwell":
+                reward = Reader.baseline(
+                    model_name,
+                    baselines_root_path,
+                    baselines_reward_file_name,
+                    calculated_sample_size,
+                )
+                esjd = np.exp(np.mean(reward))
+            case _:
+                raise ValueError(
+                    "Invalid mode. Please choose from 'standard' or 'rao-blackwell'."
+                )
 
         param_unc_num = model.param_unc_num()
 
@@ -837,6 +943,7 @@ class Evaluator:
         nuts_root_path: str = "baselines",
         nuts_sample_file_name: str = "nuts.npy",
         batch_size: int = 1_000,
+        mode: str = "standard",
     ) -> Tuple[int, float, float, float]:
         model = Toolbox.generate_model(model_name)
         gs_unconstrain = Toolbox.gold_standard(model_name)
@@ -852,7 +959,16 @@ class Evaluator:
             gs_torch, data_torch, batch_size=batch_size, sigma=lengthscale
         )
         ess = multiESS(data)
-        esjd = Toolbox.expected_square_jump_distance(data)
+
+        match mode:
+            case "standard":
+                esjd = Toolbox.expected_square_jump_distance(data)
+            case "rao-blackwell":
+                raise ValueError("NUTS does not support Rao-Blackwell mode.")
+            case _:
+                raise ValueError(
+                    "Invalid mode. NUTS can only calculate 'standard' expected square jump distance."
+                )
 
         param_unc_num = model.param_unc_num()
 
@@ -864,6 +980,7 @@ class Evaluator:
         mala_root_path: str = "baselines",
         mala_sample_file_name: str = "mala.npy",
         batch_size: int = 1_000,
+        mode: str = "standard",
     ) -> Tuple[int, float, float, float]:
         model = Toolbox.generate_model(model_name)
         gs_unconstrain = Toolbox.gold_standard(model_name)
@@ -882,8 +999,19 @@ class Evaluator:
             gs_torch, data_torch, batch_size=batch_size, sigma=lengthscale
         )
         ess = multiESS(data)
-        esjd = np.exp(np.mean(reward))
 
+        match mode:
+            case "standard":
+                esjd = Toolbox.expected_square_jump_distance(data)
+            case "rao-blackwell":
+                reward = Reader.mala(
+                    model_name, mala_root_path, mala_sample_file_name, "rewards"
+                )
+                esjd = np.exp(np.mean(reward))
+            case _:
+                raise ValueError(
+                    "Invalid mode. Please choose from 'standard' or 'rao-blackwell'."
+                )
         param_unc_num = model.param_unc_num()
 
         return (param_unc_num, esjd.item(), ess.item(), mmd.item())
@@ -908,38 +1036,189 @@ class Evaluator:
 
 
 class Exporter:
-    def __init__(
-        self, root_path: str, out_root_path: str = ".", verbose: bool = True
-    ) -> None:
-        self.root_path = root_path
-        self.out_root_path = out_root_path
-        self.verbose = verbose
+    @staticmethod
+    def export(root_path: str, out_root_path: str = ".", verbose: bool = True) -> None:
+        model_type = os.path.basename(root_path)
 
-        self.model_type = os.path.basename(root_path)
-
-    def export(self) -> None:
-        calculate_evaluations = Evaluator.make(self.model_type)
+        calculate_evaluations = Evaluator.make(model_type)
         model_name_list: List[str] = [
             d
-            for d in os.listdir(self.root_path)
-            if os.path.isdir(os.path.join(self.root_path, d))
+            for d in os.listdir(root_path)
+            if os.path.isdir(os.path.join(root_path, d))
         ]
         model_table = PrettyTable()
         model_table.set_style(MARKDOWN)
         model_table.field_names = ["Task", "d", "ESJD", "ESS", "MMD"]
 
-        for i in tqdm(model_name_list, disable=(not self.verbose)):
+        for i in tqdm(model_name_list, disable=(not verbose)):
             param_unc_num, esjd, ess, mmd = calculate_evaluations(i)
             model_table.add_row(
                 [i, param_unc_num, f"{esjd:.4e}", f"{ess:.4e}", f"{mmd:.4e}"]
             )
 
-        output_file_path = os.path.join(
-            self.out_root_path, f"{self.model_type}_table.csv"
-        )
+        output_file_path = os.path.join(out_root_path, f"{model_type}_table.csv")
 
         with open(output_file_path, "w", newline="") as f:
             f.write(model_table.get_csv_string())
+
+        return None
+
+    @staticmethod
+    def round_export(
+        out_root_path: str = ".",
+        results_root_path: str = os.path.join("results"),
+        baselines_root_path: str = os.path.join("baselines"),
+        mala_root_path: str = os.path.join("baselines"),
+        round_dir_name: str = "round",
+        round_size: int = 10,
+        dbpath: str = os.path.join("posteriordb", "posterior_database"),
+        verbose: bool = True,
+    ) -> None:
+        d = Toolbox.sorted_model_dict(dbpath)
+
+        results_evaluations = Evaluator.make("results")
+        baselines_evaluations = Evaluator.make("baselines")
+        mala_evaluations = Evaluator.make("mala")
+
+        [
+            results_esjd_rounds,
+            results_ess_rounds,
+            results_mmd_rounds,
+            baselines_esjd_rounds,
+            baselines_ess_rounds,
+            baselines_mmd_rounds,
+            mala_esjd_rounds,
+            mala_ess_rounds,
+            mala_mmd_rounds,
+        ] = [np.empty(round_size) for _ in range(9)]
+
+        results_table, baselines_table, mala_table = [PrettyTable() for _ in range(3)]
+        results_table.set_style(MARKDOWN)
+        baselines_table.set_style(MARKDOWN)
+        mala_table.set_style(MARKDOWN)
+        [
+            results_table.field_names,
+            baselines_table.field_names,
+            mala_table.field_names,
+        ] = [
+            [
+                "Task",
+                "d",
+                "ESJD_mean",
+                "ESJD_std_error",
+                "ESS_mean",
+                "ESS_std_error",
+                "MMD_mean",
+                "MMD_std_error",
+            ]
+            for _ in range(3)
+        ]
+
+        for i, j in tqdm(d.items(), disable=(not verbose)):
+            for k in range(round_size):
+                (
+                    _,
+                    results_esjd_rounds[k],
+                    results_ess_rounds[k],
+                    results_mmd_rounds[k],
+                ) = results_evaluations(
+                    i, os.path.join(results_root_path, f"{round_dir_name}{k}")
+                )
+                (
+                    _,
+                    baselines_esjd_rounds[k],
+                    baselines_ess_rounds[k],
+                    baselines_mmd_rounds[k],
+                ) = baselines_evaluations(
+                    i, os.path.join(baselines_root_path, f"{round_dir_name}{k}")
+                )
+                _, mala_esjd_rounds[k], mala_ess_rounds[k], mala_mmd_rounds[k] = (
+                    mala_evaluations(
+                        i, os.path.join(mala_root_path, f"{round_dir_name}{k}")
+                    )
+                )
+
+            [
+                [results_esjd_mean, results_esjd_std],
+                [results_ess_mean, results_ess_std],
+                [results_mmd_mean, results_mmd_std],
+            ] = [
+                Toolbox.get_evaluations_mean_and_std_error(m)
+                for m in [results_esjd_rounds, results_ess_rounds, results_mmd_rounds]
+            ]
+
+            [
+                [baselines_esjd_mean, baselines_esjd_std],
+                [baselines_ess_mean, baselines_ess_std],
+                [baselines_mmd_mean, baselines_mmd_std],
+            ] = [
+                Toolbox.get_evaluations_mean_and_std_error(n)
+                for n in [
+                    baselines_esjd_rounds,
+                    baselines_ess_rounds,
+                    baselines_mmd_rounds,
+                ]
+            ]
+
+            [
+                [mala_esjd_mean, mala_esjd_std],
+                [mala_ess_mean, mala_ess_std],
+                [mala_mmd_mean, mala_mmd_std],
+            ] = [
+                Toolbox.get_evaluations_mean_and_std_error(p)
+                for p in [mala_esjd_rounds, mala_ess_rounds, mala_mmd_rounds]
+            ]
+
+            results_table.add_row(
+                [
+                    i,
+                    j,
+                    f"{results_esjd_mean:.1e}",
+                    f"{results_esjd_std:.1e}",
+                    f"{results_ess_mean:.1e}",
+                    f"{results_ess_std:.1e}",
+                    f"{results_mmd_mean:.1e}",
+                    f"{results_mmd_std:.1e}",
+                ]
+            )
+
+            baselines_table.add_row(
+                [
+                    i,
+                    j,
+                    f"{baselines_esjd_mean:.1e}",
+                    f"{baselines_esjd_std:.1e}",
+                    f"{baselines_ess_mean:.1e}",
+                    f"{baselines_ess_std:.1e}",
+                    f"{baselines_mmd_mean:.1e}",
+                    f"{baselines_mmd_std:.1e}",
+                ]
+            )
+
+            mala_table.add_row(
+                [
+                    i,
+                    j,
+                    f"{mala_esjd_mean:.1e}",
+                    f"{mala_esjd_std:.1e}",
+                    f"{mala_ess_mean:.1e}",
+                    f"{mala_ess_std:.1e}",
+                    f"{mala_mmd_mean:.1e}",
+                    f"{mala_mmd_std:.1e}",
+                ]
+            )
+
+        results_file_path, baselines_file_path, mala_file_path = [
+            os.path.join(out_root_path, f"{model_type}_table.csv")
+            for model_type in ["results", "baselines", "mala"]
+        ]
+
+        with open(results_file_path, "w", newline="") as f:
+            f.write(results_table.get_csv_string())
+        with open(baselines_file_path, "w", newline="") as f:
+            f.write(baselines_table.get_csv_string())
+        with open(mala_file_path, "w", newline="") as f:
+            f.write(mala_table.get_csv_string())
 
         return None
 

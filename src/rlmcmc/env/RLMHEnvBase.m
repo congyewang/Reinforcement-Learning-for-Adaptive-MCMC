@@ -8,12 +8,15 @@ classdef (Abstract) RLMHEnvBase < rl.env.MATLABEnvironment
         % Store
         store_observation = {};
         store_action = {};
-        store_log_accetance_rate = {};
+        store_log_acceptance_rate = {};
         store_accepted_status = {};
         store_reward = {};
 
         store_current_sample = {};
         store_proposed_sample = {};
+
+        store_current_mean = {};
+        store_proposed_mean = {};
 
         store_current_covariance = {};
         store_proposed_covariance = {};
@@ -72,10 +75,16 @@ classdef (Abstract) RLMHEnvBase < rl.env.MATLABEnvironment
     methods
         function res = log_target_pdf(this, x)
             res = this.log_target_pdf_pointer(x);
+            if isinf(res)
+                res = -realmax;
+            end
         end
 
         function res = log_proposal_pdf(this, x, mean, var)
             res = Laplace(x, mean, var);
+            if isinf(res)
+                res = -realmax;
+            end
         end
 
         function reward = reward_function(this, current_sample, proposed_sample, log_alpha, log_mode)
@@ -131,6 +140,14 @@ classdef (Abstract) RLMHEnvBase < rl.env.MATLABEnvironment
             end
 
             %% Store
+            % Store Sample
+            this.store_current_sample{end+1} = current_sample;
+            this.store_proposed_sample{end+1} = proposed_sample;
+
+            % Store Mean
+            this.store_current_mean{end+1} = current_mean;
+            this.store_proposed_mean{end+1} = proposed_mean;
+
             % Store Covariance
             this.store_current_covariance{end+1} = current_covariance;
             this.store_proposed_covariance{end+1} = proposed_covariance;
@@ -144,7 +161,7 @@ classdef (Abstract) RLMHEnvBase < rl.env.MATLABEnvironment
 
             % Store Acceptance
             this.store_accepted_status{end+1} = accepted_status;
-            this.store_log_accetance_rate{end+1} = log_alpha;
+            this.store_log_acceptance_rate{end+1} = log_alpha;
 
             this.store_accepted_sample{end+1} = accepted_sample;
             this.store_accepted_mean{end+1} = accepted_mean;

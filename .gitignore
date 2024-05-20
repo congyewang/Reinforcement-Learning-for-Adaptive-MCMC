@@ -190,6 +190,7 @@ experiments/trails
 experiments/results
 experiments/baselines
 experiments/pic
+experiments/*.csv
 
 # Demo
 demo/*.pdf
@@ -202,6 +203,18 @@ demo/build
 demo/*/build
 demo/*.so
 demo/*/*.so
+demo/*.csv
+
+demo/*/*.pdf
+demo/*/*/*.pdf
+demo/*/*.mat
+demo/*/*/*.mat
+demo/*/savedAgents
+demo/*/*/savedAgents
+demo/*/build
+demo/*/*/build
+demo/*/*.so
+demo/*/*/*.so
 
 # Test
 test

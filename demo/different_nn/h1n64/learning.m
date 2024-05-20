@@ -3,7 +3,7 @@ clc;
 rng(0);
 
 %% Add Packages
-addpath(genpath('../../src/rlmcmc/'));
+addpath(genpath('../../../src/rlmcmc/'));
 
 %% Add Log Target PDF
 log_target_pdf = @(x) mixture_gaussian_target(x, [0.5, 0.5], [-5; 5], cat(3, eye(1), eye(1)));
@@ -20,14 +20,14 @@ env = RLMHEnvDemo(log_target_pdf, zeros(sample_dim, 1), zeros(sample_dim, 1), ey
 critic = make_critic(env);
 
 %% Set Actor
-actor = make_actor_identity(env, pretrain_sample);
+actor = make_actor_identity(env, pretrain_sample, 64);
 
 %% Set DDPG
 agent = rlDDPGAgent(actor,critic);
 
 agent.AgentOptions.NoiseOptions.StandardDeviation = zeros(bitshift(sample_dim, 1), 1);
 agent.AgentOptions.ExperienceBufferLength=10^6;
-agent.AgentOptions.ActorOptimizerOptions.GradientThreshold = 1e-2;
+agent.AgentOptions.ActorOptimizerOptions.GradientThreshold = 1e-4;
 agent.AgentOptions.ResetExperienceBufferBeforeTraining = true;
 
 %% Training
@@ -42,23 +42,13 @@ trainingInfo = train(agent,env,trainOpts);
 
 %% Save Store
 save_store(env, 'train');
-% save("pretrain_sample.mat", "pretrain_sample", '-v7.3');
-% save("trainingInfo.mat", "trainingInfo", '-v7.3');
-
-%% Simulation
-% env_sim = RLMHEnv(log_target_pdf, zeros(sample_dim, 1), zeros(sample_dim, 1), eye(1));
-% 
-% simOptions = rlSimulationOptions(MaxSteps=50000);
-% experience = sim(env_sim, agent, simOptions);
-% save_store(env_sim, 'sim');
-% save("experience.mat", "experience", '-v7.3');
 
 %% Plot Policy
 fig1 = figure;
 load_agent1 = load(['savedAgents/Agent',num2str(1,'%u'),'.mat']);
 generatePolicyFunction(load_agent1.saved_agent,"MATFileName",'load_agentData1.mat');
 policy1 = coder.loadRLPolicy("load_agentData1.mat");
-policy_plot(policy1, "Episode 1 Policy");
+policy_plot(policy1, "Step 1 Policy");
 axis square;
 exportgraphics(fig1, 'Policy_Ep1.pdf');
 
@@ -66,7 +56,7 @@ fig3 = figure;
 load_agent3 = load(['savedAgents/Agent',num2str(3,'%u'),'.mat']);
 generatePolicyFunction(load_agent3.saved_agent,"MATFileName",'load_agentData3.mat');
 policy3 = coder.loadRLPolicy("load_agentData3.mat");
-policy_plot(policy3, "Episode 3 Policy");
+policy_plot(policy3, "Step 1500 Policy");
 axis square;
 exportgraphics(fig3, 'Policy_Ep3.pdf');
 
@@ -74,6 +64,6 @@ fig140 = figure;
 load_agent140 = load(['savedAgents/Agent',num2str(140,'%u'),'.mat']);
 generatePolicyFunction(load_agent140.saved_agent,"MATFileName",'load_agentData140.mat');
 policy140 = coder.loadRLPolicy("load_agentData140.mat");
-policy_plot(policy140, "Episode 140 Policy Plot");
+policy_plot(policy140, "Step 70000 Policy");
 axis square;
 exportgraphics(fig140, 'Policy_Ep140.pdf');

@@ -1,4 +1,4 @@
-classdef TwinNetworkLayerDeep < nnet.layer.Layer
+classdef TwinNetworkLayerDeeper < nnet.layer.Layer
 
     properties (Learnable)
         %{
@@ -12,13 +12,16 @@ classdef TwinNetworkLayerDeep < nnet.layer.Layer
         weights_hidden1_hidden2;
         bias_hidden2;
 
-        weights_hidden2_output;
+        weights_hidden2_hidden3;
+        bias_hidden3;
+
+        weights_hidden3_output;
         bias_output;
     end
 
     methods
 
-        function layer = TwinNetworkLayerDeep(args)
+        function layer = TwinNetworkLayerDeeper(args)
             %{
             This is a constructor function. This function is called first
             at the TwinNetworkLayer instantiate.
@@ -28,6 +31,7 @@ classdef TwinNetworkLayerDeep < nnet.layer.Layer
                 args.input_nodes int16; % dim of x_n
                 args.hidden1_nodes int16;
                 args.hidden2_nodes int16;
+                args.hidden3_nodes int16;
                 args.output_nodes int16; % dim of phi(x_n)
                 args.mag double = 1.0;
             end
@@ -41,7 +45,10 @@ classdef TwinNetworkLayerDeep < nnet.layer.Layer
             layer.weights_hidden1_hidden2 = layer.kaiming_normal_init(args.hidden1_nodes, args.hidden2_nodes, args.mag);
             layer.bias_hidden2 = zeros(args.hidden2_nodes, 1);
 
-            layer.weights_hidden2_output = layer.kaiming_normal_init(args.hidden2_nodes, args.output_nodes, args.mag);
+            layer.weights_hidden2_hidden3 = layer.kaiming_normal_init(args.hidden2_nodes, args.hidden3_nodes, args.mag);
+            layer.bias_hidden3 = zeros(args.hidden2_nodes, 1);
+
+            layer.weights_hidden3_output = layer.kaiming_normal_init(args.hidden3_nodes, args.output_nodes, args.mag);
             layer.bias_output = zeros(args.output_nodes, 1);
         end
 
@@ -155,7 +162,9 @@ classdef TwinNetworkLayerDeep < nnet.layer.Layer
             X = layer.relu(X);
             X = layer.linear(X, layer.weights_hidden1_hidden2, layer.bias_hidden2);
             X = layer.relu(X);
-            X = layer.linear(X, layer.weights_hidden2_output, layer.bias_output);
+            X = layer.linear(X, layer.weights_hidden2_hidden3, layer.bias_hidden3);
+            X = layer.relu(X);
+            X = layer.linear(X, layer.weights_hidden3_output, layer.bias_output);
             res = X;
         end
 
