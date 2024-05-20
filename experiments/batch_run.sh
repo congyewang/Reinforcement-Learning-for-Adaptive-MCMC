@@ -52,11 +52,5 @@ done
 echo -ne "\n"
 echo "Processing complete."
 
-
-# Send Message
-url="https://gotify.greenlimes.top"
-token="AEqrtS7SCsWFb6J"
-curl "$url/message?token=$token" -F "title=${root_dir%/} Finished" -F "message=${root_dir%/} Finished" -F "priority=5" --ssl-no-revoke
-
 echo "Finishing Job"
 exit 0
