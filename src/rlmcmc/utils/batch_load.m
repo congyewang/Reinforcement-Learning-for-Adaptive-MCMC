@@ -1,10 +1,11 @@
-function [] = batch_load(free_load)
+function [] = batch_load(lib_super_path, free_load)
 
 if nargin < 1
+    lib_super_path = "../../../experiments/trails";
+end
+if nargin < 2
     free_load = false;
 end
-
-lib_super_path = "../../experiments/trails";
 
 if free_load == false
     add_log_target_pdf_lib(lib_super_path);
