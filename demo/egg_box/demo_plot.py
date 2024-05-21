@@ -8,7 +8,7 @@ def main():
     toolbox = Toolbox("egg_box_target")
 
     toolbox.nuts()
-    toolbox.mala(mag=2.0)
+    toolbox.mala()
     toolbox.target(dim=2)
     toolbox.rl()
     toolbox.reward()

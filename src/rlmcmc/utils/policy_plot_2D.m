@@ -1,4 +1,7 @@
-function policy_plot_2D(policy, title_str, log_target_pdf, x_n_1, x_n_2, lb, ub)
+function policy_plot_2D(policy, log_target_pdf, color_list, x_n_1, x_n_2, lb, ub)
+if nargin < 3
+    color_list = [1,0,0,0.1];
+end
 if nargin < 4
     x_n_1 = [-7, -5, -3, 0, 3, 5, 7];
 end
@@ -8,10 +11,10 @@ if nargin < 5
 end
 
 if nargin < 6
-    lb = -6;
+    lb = -10;
 end
 if nargin < 7
-    ub = 6;
+    ub = 10;
 end
 
 [X_N_1, X_N_2] = ndgrid(x_n_1, x_n_2);
@@ -29,11 +32,7 @@ for i = 1:nits
     res = getAction(policy, obs(i,:));
     policy_res(i, 1:2) = res(1:2)';
 
-    plot_samples_3D(obs(i,1:2), policy_res(i, 1:2), log_target_pdf, lb, ub);
+    plot_samples_3D(obs(i,1:2), policy_res(i, 1:2), log_target_pdf, color_list, lb, ub);
 end
-
-xlabel('$x$', 'Interpreter', 'latex', 'FontSize', 17);
-ylabel('$y$', 'Interpreter', 'latex', 'FontSize', 17);
-title(title_str, 'Interpreter', 'latex', 'FontSize', 17);
 
 end

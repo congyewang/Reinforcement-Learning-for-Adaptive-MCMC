@@ -14,7 +14,7 @@ pretrain_sample = unifrnd(-10, 10, [pretrain_nits, 1]); % data for pre-training
 
 %% Set environment - use (approx) mean (mu) and covariance (Sigma) to inform proposal
 sample_dim = 1;
-env = RLMHEnvDemo(log_target_pdf, zeros(sample_dim, 1), zeros(sample_dim, 1), eye(1));
+env = RLMHEnvDemo(log_target_pdf, zeros(sample_dim, 1), zeros(sample_dim, 1), 2 * eye(1));
 
 %% Set Critic
 critic = make_critic(env);
@@ -48,7 +48,7 @@ fig1 = figure;
 load_agent1 = load(['savedAgents/Agent',num2str(1,'%u'),'.mat']);
 generatePolicyFunction(load_agent1.saved_agent,"MATFileName",'load_agentData1.mat');
 policy1 = coder.loadRLPolicy("load_agentData1.mat");
-policy_plot(policy1, "Step 1 Policy", -2, 4);
+policy_plot(policy1, "Step 1 Policy", -6, 6);
 axis square;
 exportgraphics(fig1, 'Policy_Ep1.pdf');
 
@@ -56,7 +56,7 @@ fig3 = figure;
 load_agent3 = load(['savedAgents/Agent',num2str(3,'%u'),'.mat']);
 generatePolicyFunction(load_agent3.saved_agent,"MATFileName",'load_agentData3.mat');
 policy3 = coder.loadRLPolicy("load_agentData3.mat");
-policy_plot(policy3, "Step 1500 Policy", -2, 4);
+policy_plot(policy3, "Step 1500 Policy", -6, 6);
 axis square;
 exportgraphics(fig3, 'Policy_Ep3.pdf');
 
@@ -64,6 +64,6 @@ fig140 = figure;
 load_agent140 = load(['savedAgents/Agent',num2str(140,'%u'),'.mat']);
 generatePolicyFunction(load_agent140.saved_agent,"MATFileName",'load_agentData140.mat');
 policy140 = coder.loadRLPolicy("load_agentData140.mat");
-policy_plot(policy140, "Step 70000 Policy", -2, 4);
+policy_plot(policy140, "Step 70000 Policy", -6, 6);
 axis square;
 exportgraphics(fig140, 'Policy_Ep140.pdf');

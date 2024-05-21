@@ -6,15 +6,15 @@ rng(0);
 addpath(genpath('../../src/rlmcmc/'));
 
 %% Add Log Target PDF
-log_target_pdf = @(x) mixture_gaussian_target(x, [0.5, 0.5], [-5, 0; 5, 0], cat(3, eye(2), eye(2)));
+log_target_pdf = @(x) mixture_gaussian_target(x, [0.6, 0.4], [-5; 7], cat(3, eye(1), 2 * eye(1)));
 
 %% get (approx) mean (mu) and covariance (Sigma) from adaptive mcmc
-pretrain_nits = 1000;
-pretrain_sample = mvnrnd([0,0], 25 * eye(2), pretrain_nits); % data for pre-training
+pretrain_nits = 100;
+pretrain_sample = normrnd(0, 25, [pretrain_nits, 1]); % data for pre-training
 
 %% Set environment - use (approx) mean (mu) and covariance (Sigma) to inform proposal
-sample_dim = 2;
-env = RLMHEnvDemo(log_target_pdf, zeros(sample_dim, 1), zeros(sample_dim, 1), 2 * eye(sample_dim));
+sample_dim = 1;
+env = RLMHEnvDemo(log_target_pdf, zeros(sample_dim, 1), zeros(sample_dim, 1), 2 * eye(1));
 
 %% Set Critic
 critic = make_critic(env);
@@ -27,7 +27,7 @@ agent = rlDDPGAgent(actor,critic);
 
 agent.AgentOptions.NoiseOptions.StandardDeviation = zeros(bitshift(sample_dim, 1), 1);
 agent.AgentOptions.ExperienceBufferLength=10^6;
-agent.AgentOptions.ActorOptimizerOptions.GradientThreshold = 1e-2;
+agent.AgentOptions.ActorOptimizerOptions.GradientThreshold = 1;
 agent.AgentOptions.ResetExperienceBufferBeforeTraining = true;
 
 %% Training
@@ -44,49 +44,26 @@ trainingInfo = train(agent,env,trainOpts);
 save_store(env, 'train');
 
 %% Plot Policy
-plot_log_pdf = @(x) 0.5 * mvnpdf(x, [-3 0], eye(2)) + 0.5 * mvnpdf(x, [3 0], eye(2));
-
 fig1 = figure;
 load_agent1 = load(['savedAgents/Agent',num2str(1,'%u'),'.mat']);
 generatePolicyFunction(load_agent1.saved_agent,"MATFileName",'load_agentData1.mat');
 policy1 = coder.loadRLPolicy("load_agentData1.mat");
-policy_plot_2D(policy1, plot_log_pdf);
+policy_plot(policy1, "Step 1 Policy");
 axis square;
-
-ax = gca;
-ax.ZColor = 'none';
-ax.ZTickLabel = [];
-ax.ZTick = [];
-
-set(ax, 'LooseInset', get(ax, 'TightInset'));
-exportgraphics(fig1, 'Policy_Ep1.pdf', 'BackgroundColor', 'none', 'ContentType', 'image');
+exportgraphics(fig1, 'Policy_Ep1.pdf');
 
 fig3 = figure;
 load_agent3 = load(['savedAgents/Agent',num2str(3,'%u'),'.mat']);
 generatePolicyFunction(load_agent3.saved_agent,"MATFileName",'load_agentData3.mat');
 policy3 = coder.loadRLPolicy("load_agentData3.mat");
-policy_plot_2D(policy3, plot_log_pdf);
+policy_plot(policy3, "Step 1500 Policy");
 axis square;
-
-ax = gca;
-ax.ZColor = 'none';
-ax.ZTickLabel = [];
-ax.ZTick = [];
-
-set(ax, 'LooseInset', get(ax, 'TightInset'));
-exportgraphics(fig3, 'Policy_Ep3.pdf', 'BackgroundColor', 'none', 'ContentType', 'image');
+exportgraphics(fig3, 'Policy_Ep3.pdf');
 
 fig140 = figure;
 load_agent140 = load(['savedAgents/Agent',num2str(140,'%u'),'.mat']);
 generatePolicyFunction(load_agent140.saved_agent,"MATFileName",'load_agentData140.mat');
 policy140 = coder.loadRLPolicy("load_agentData140.mat");
-policy_plot_2D(policy140, plot_log_pdf);
+policy_plot(policy140, "Step 70000 Policy");
 axis square;
-
-ax = gca;
-ax.ZColor = 'none';
-ax.ZTickLabel = [];
-ax.ZTick = [];
-
-set(ax, 'LooseInset', get(ax, 'TightInset'));
-exportgraphics(fig140, 'Policy_Ep140.pdf', 'BackgroundColor', 'none', 'ContentType', 'image');
+exportgraphics(fig140, 'Policy_Ep140.pdf');

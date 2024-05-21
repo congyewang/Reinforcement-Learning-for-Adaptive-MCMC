@@ -9,7 +9,7 @@ def main():
 
     toolbox.nuts()
     toolbox.mala()
-    toolbox.target(-12, 13)
+    toolbox.target(lb=-12, ub=13)
     toolbox.rl()
     toolbox.reward()
 

@@ -207,14 +207,23 @@ demo/*.csv
 
 demo/*/*.pdf
 demo/*/*/*.pdf
+demo/*/*/*/*.pdf
 demo/*/*.mat
 demo/*/*/*.mat
+demo/*/*/*/*.mat
+demo/*/*/*/*/*.mat
 demo/*/savedAgents
 demo/*/*/savedAgents
+demo/*/*/*/savedAgents
 demo/*/build
 demo/*/*/build
+demo/*/*/*/build
 demo/*/*.so
 demo/*/*/*.so
+demo/*/*/*/*.so
 
 # Test
 test
+
+# Matlab Generated Code
+**/evaluatePolicy.m

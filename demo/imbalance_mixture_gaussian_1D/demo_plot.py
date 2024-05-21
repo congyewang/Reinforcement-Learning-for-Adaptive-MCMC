@@ -5,11 +5,11 @@ from toolbox import Toolbox
 
 
 def main():
-    toolbox = Toolbox("skew_normal_target")
+    toolbox = Toolbox("mixture_gaussian_target")
 
     toolbox.nuts()
-    toolbox.mala()
-    toolbox.target(lb=-2, ub=4)
+    toolbox.mala(mag=2)
+    toolbox.target(dim=1, lb=-10, ub=15)
     toolbox.rl()
     toolbox.reward()
 

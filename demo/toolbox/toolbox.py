@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import stan
 from matplotlib.colors import LinearSegmentedColormap
-from scipy.io import loadmat
+from scipy.io import loadmat, savemat
 
 np.random.seed(0)
 sys.path.append("../../experiments")
@@ -44,6 +44,7 @@ class Toolbox:
         df = fit.to_frame()
         try:
             nuts_data = df["x"].to_numpy().reshape(-1, 1)
+            savemat("nuts.mat", {"nuts_data": nuts_data})
 
             plt.figure(figsize=(6, 6))
             plt.hist(nuts_data, bins=self.bins_num, density=True, color="#B0B1B6")
@@ -55,6 +56,8 @@ class Toolbox:
 
         except KeyError:
             nuts_data = df[["x.1", "x.2"]].to_numpy().reshape(-1, 2)
+            savemat("nuts.mat", {"nuts_data": nuts_data})
+
             cm_nuts = LinearSegmentedColormap.from_list(
                 "nuts_gray", [(1, 1, 1, 0), (0.69, 0.69, 0.71, 1)], N=self.bins_num
             )
@@ -102,6 +105,8 @@ class Toolbox:
             x0, h0, c0, alpha, epoch, pb=True
         )
         mala_data = x[-1]
+
+        savemat("mala.mat", {"mala_data": mala_data})
 
         if mala_data.shape[1] == 1:
             plt.figure(figsize=(6, 6))
@@ -157,6 +162,8 @@ class Toolbox:
                 x = np.linspace(lb, ub, 1000)
                 gs = np.exp([self.model.log_density(np.array(i)) for i in x])
 
+                savemat("target.mat", {"target_data": gs})
+
                 plt.figure(figsize=(6, 6))
                 plt.plot(x, gs, color="#9A7549")
                 plt.xlabel(r"$x$", fontsize=17)
@@ -167,7 +174,8 @@ class Toolbox:
 
             case 2:
                 x = np.linspace(lb, ub, 100)
-                y = np.linspace(lb, ub, 100)
+                # y = np.linspace(lb, ub, 100)
+                y = np.linspace(-4, 4, 100)
                 X, Y = np.meshgrid(x, y)
 
                 Z = np.zeros_like(X)
@@ -177,6 +185,8 @@ class Toolbox:
                         Z[i, j] = np.exp(
                             self.model.log_density(np.array([X[i, j], Y[i, j]]))
                         )
+
+                savemat("target.mat", {"target_data": Z})
 
                 plt.figure(figsize=(6, 6))
                 plt.contour(X, Y, Z)
@@ -263,6 +273,13 @@ class Toolbox:
         )
         data_rl_average_episode_reward_moving_window = utils.Toolbox.moving_average(
             data_rl_average_episode_reward, 5
+        )
+
+        savemat(
+            "data_rl_average_episode_reward_moving_window.mat",
+            {
+                "data_rl_average_episode_reward_moving_window": data_rl_average_episode_reward_moving_window
+            },
         )
 
         step_scale = np.arange(

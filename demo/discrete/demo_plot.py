@@ -8,8 +8,8 @@ def main():
     toolbox = Toolbox("discrete_target")
 
     toolbox.nuts()
-    toolbox.mala()
-    toolbox.target(-6, 6)
+    toolbox.mala(2)
+    toolbox.target(lb=-7, ub=7)
     toolbox.rl()
     toolbox.reward()
 

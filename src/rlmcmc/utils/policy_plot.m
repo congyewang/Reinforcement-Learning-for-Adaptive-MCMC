@@ -4,10 +4,10 @@ if nargin < 2
     title_str = "Policy Plot";
 end
 if nargin < 3
-    lb = -6;
+    lb = -10;
 end
 if nargin < 4
-    ub = 6;
+    ub = 10;
 end
 
 X = lb:.1:ub;
