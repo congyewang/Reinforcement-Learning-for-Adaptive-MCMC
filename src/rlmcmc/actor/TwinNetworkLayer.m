@@ -37,66 +37,6 @@ classdef TwinNetworkLayer < nnet.layer.Layer
         end
 
         %% initialize Neural Network parameters Function
-        function weights = xavier_uniform_init(layer, fan_in, fan_out, mag)
-            %{
-            Xavier uniform initialisation. The purpose of the Xavier
-            initialisation is to keep the variance of the inputs constant
-            at each layer while training the deep network to avoid the
-            problem of vanishing or exploding gradients.
-
-            Args:
-                fan_in: Input layer size.
-                fan_out: Output layer size.
-            %}
-
-            % Calculate the range of initialisation a
-            gain = mag * 1.0;
-            std = gain * sqrt(2.0 / double(fan_in + fan_out));
-            a = sqrt(3.0) * std;
-            % Randomly initialise the weight matrix from a uniform distribution U(-a, a)
-            weights = unifrnd(-a, a, fan_in, fan_out);
-        end
-
-        function weights = xavier_normal_init(layer, fan_in, fan_out, mag)
-            %{
-            Xavier normal initialisation.
-
-            Args:
-                fan_in: Input layer size.
-                fan_out: Output layer size.
-            %}
-
-            % Calculate standard deviation
-            gain = mag * 1.0;
-            std = gain * sqrt(2.0 / double(fan_in + fan_out));
-
-            % Randomly initialise the weight matrix using a normal distribution N(0, sigma^2)
-            weights = normrnd(0, std, fan_in, fan_out);
-        end
-
-        function weights = kaiming_uniform_init(layer, fan_in, fan_out, mag)
-            %{
-            Kaiming uniform initialisation, which is a weight initialisation
-            method specifically designed to solve the problem of gradient
-            vanishing/exploding of ReLU activation functions in deep neural
-            networks. This method assumes that the activation function is a
-            ReLU and therefore takes into account the properties of ReLU
-            during initialisation.
-
-            Args:
-                fan_in: Input layer size.
-                fan_out: Output layer size.
-            %}
-
-            % Calculate the range of initialisation bound
-            gain = mag * sqrt(2);
-            std = gain / sqrt(double(fan_in));
-            bound = sqrt(3.0) * std;
-
-            % Randomly initialise the weight matrix from a uniform distribution U(-bound, bound)
-            weights = unifrnd(-bound, bound, fan_in, fan_out);
-        end
-
         function weights = kaiming_normal_init(layer, fan_in, fan_out, mag)
             %{
             Kaiming normal initialisation

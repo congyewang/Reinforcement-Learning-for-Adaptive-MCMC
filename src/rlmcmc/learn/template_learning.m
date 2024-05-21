@@ -2,25 +2,26 @@ clearvars;
 clc;
 rng(0);
 
-%% add PosteriorDB
-model_name = "earnings_log10earn_height";
-sample_dim = wrapped_search_sample_dim(model_name);
-log_target_pdf = @(x) wrapped_log_target_pdf(x',model_name);
+%% Add Packages
+addpath(genpath('..'));
 
-%% get (approx) mean (mu) and covariance (Sigma) from adaptive mcmc
-am_nits = 1000;
-am_rate = 0.5;
+%% Add Log Target PDF
+log_target_pdf = @(x) disp('Please provide a log target pdf function.');
 
-[x_AMH,~,~,~] = AdaptiveMetropolis(log_target_pdf, sample_dim, am_nits, am_rate);
+%% Get (Approx) Mean (mu) and Covariance (Sigma) from AMH
+am_nits = 10000;
+am_rate = {{ am_rate }};
 
-mu = mean(x_AMH(:,ceil(am_nits/2):end),2);
-Sigma = cov(x_AMH(:,ceil(am_nits/2):end)');
+[x_AMH,~,~,~,~] = AdaptiveMetropolis(log_target_pdf, sample_dim, am_nits, am_rate);
 
-actor_nits = am_nits - ceil(am_nits/2) + 1;
-pretrain_sample = x_AMH(:,ceil(am_nits/2):end)'; % data for pre-training
+mu = mean(x_AMH(:,ceil(2*am_nits/3):end),2);
+Sigma = cov(x_AMH(:,ceil(2*am_nits/3):end)');
+
+actor_nits = am_nits - ceil(2*am_nits/3) + 1;
+pretrain_sample = x_AMH(:,ceil(2*am_nits/3):end)'; % data for pre-training
 
 %% Set environment - use (approx) mean (mu) and covariance (Sigma) to inform proposal
-env = RLMHEnv(log_target_pdf, rand(1, sample_dim), mu, Sigma);
+env = RLMHEnv(log_target_pdf, mu, mu, Sigma);
 
 %% Set Critic
 critic = make_critic(env);
@@ -33,7 +34,8 @@ agent = rlDDPGAgent(actor,critic);
 
 agent.AgentOptions.NoiseOptions.StandardDeviation = zeros(bitshift(sample_dim, 1), 1);
 agent.AgentOptions.ExperienceBufferLength=10^6;
-agent.AgentOptions.ActorOptimizerOptions.GradientThreshold=1e-10;
+agent.AgentOptions.ActorOptimizerOptions.LearnRate = 1e-6;
+agent.AgentOptions.ActorOptimizerOptions.GradientThreshold = min(size(Sigma, 1) / norm(Sigma, 'fro')^2, 1e-5);
 agent.AgentOptions.ResetExperienceBufferBeforeTraining = true;
 
 %% Training
@@ -44,10 +46,16 @@ trainOpts = rlTrainingOptions( ...
     );
 trainingInfo = train(agent,env,trainOpts);
 
-%% Plot Learning Trace
-trace_plot(env);
-
 %% Save Store
-save_store(env);
-save("pretrain_sample.mat", "pretrain_sample");
-save("actor.mat", "actor");
+save_store(env, 'train');
+save("pretrain_sample.mat", "pretrain_sample", '-v7.3');
+save("trainingInfo.mat", "trainingInfo", '-v7.3');
+
+%% Simulation
+initial_sample_sim = env.store_accepted_sample{end};
+env_sim = RLMHEnv(log_target_pdf, initial_sample_sim, mu, Sigma);
+
+simOptions = rlSimulationOptions(MaxSteps=5000);
+experience = sim(env_sim, agent, simOptions);
+save_store(env_sim, 'sim');
+save("experience.mat", "experience", '-v7.3');
