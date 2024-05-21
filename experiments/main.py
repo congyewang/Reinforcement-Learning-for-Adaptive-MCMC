@@ -5,7 +5,7 @@ import tarfile
 from pathlib import Path
 
 import wget
-from tqdm.auto import trange, tqdm
+from tqdm.auto import tqdm, trange
 from utils import Extractor, Toolbox
 
 
@@ -63,18 +63,20 @@ def make_models() -> None:
 
 def main():
     # Prepare
-    # pre_build_bridgestan()
+    pre_build_bridgestan()
 
     # Check gcc version
-    # if platform.system() != "Darwin":
-    #     Toolbox.check_gcc_version()
+    if platform.system() != "Darwin":
+        Toolbox.check_gcc_version()
+
+    gs_model_name_list = Toolbox.output_gs_name()
 
     # Extract Models
-    # for i in tqdm(gs_model_name_list):
-    #     Extractor.make("model")(i)
+    for i in tqdm(gs_model_name_list):
+        Extractor.make("model")(i)
 
     ## Run make
-    # make_models()
+    make_models()
 
     # Extract Results
     round_num = 10
@@ -89,14 +91,12 @@ def main():
         ):
             os.makedirs(baselines_round_root)
 
-    gs_model_name_list = Toolbox.output_gs_name()
-
     for j in trange(round_num):
         for k in gs_model_name_list:
-            # Extractor.make("result")(k, os.path.join("results", f"round{j}"), j)
-            # Extractor.make("baseline")(k, os.path.join("baselines", f"round{j}"), j)
+            Extractor.make("result")(k, os.path.join("results", f"round{j}"), j)
+            Extractor.make("baseline")(k, os.path.join("baselines", f"round{j}"), j)
             Extractor.make("mala")(k, os.path.join("baselines", f"round{j}"), j)
-            # Extractor.make("nuts")(k, os.path.join("baselines", f"round{j}"), j)
+            Extractor.make("nuts")(k, os.path.join("baselines", f"round{j}"), j)
 
 
 if __name__ == "__main__":
