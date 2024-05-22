@@ -41,7 +41,8 @@ zsh run.sh
 
 ## Experiment
 ```{bash}
+cd experiments
 python main.py
-zsh batch_run.sh
+zsh batch_run.sh "results" "learning.m"
 zsh batch_baselines.sh
 ```
