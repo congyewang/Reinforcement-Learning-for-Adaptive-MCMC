@@ -21,7 +21,7 @@ nuts_path = "Data/nuts.mat";
 sample_path = "Data/train_store_accepted_sample.mat";
 
 %% 3D target
-plot_log_pdf = @(x) 0.5 * mvnpdf(x, [-3 0], eye(2)) + 0.5 * mvnpdf(x, [3 0], eye(2));
+plot_log_pdf = @(x) 0.5 * mvnpdf(x, [-5, 0], eye(2)) + 0.5 * mvnpdf(x, [5 0], eye(2));
 nits = 50;
 black_color = [0,0,0,0.01];
 red_color = [1,0,0,0.01];
