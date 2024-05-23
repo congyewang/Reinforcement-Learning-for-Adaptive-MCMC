@@ -44,7 +44,7 @@ trainingInfo = train(agent,env,trainOpts);
 save_store(env, 'train');
 
 %% Plot Policy
-plot_log_pdf = @(x) 0.5 * mvnpdf(x, [-3 0], eye(2)) + 0.5 * mvnpdf(x, [3 0], eye(2));
+plot_log_pdf = @(x) 0.5 * mvnpdf(x, [-5 0], eye(2)) + 0.5 * mvnpdf(x, [5 0], eye(2));
 
 fig1 = figure;
 load_agent1 = load(['savedAgents/Agent',num2str(1,'%u'),'.mat']);
