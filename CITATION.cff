@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+authors:
+  - family-names: "Wang"
+    given-names: "Congye"
+  - family-names: "Chen"
+    given-names: "Wilson"
+  - family-names: "Kanagawa"
+    given-names: "Heishiro"
+  - family-names: "Oates"
+    given-names: "Chris"
+title: "Reinforcement Learning for Adaptive MCMC"
+version: "1.0.0"
+journal: "arXiv preprint arXiv:2405.13574"
+date-released: "2024-01-01"
+url: "https://github.com/congyewang/Reinforcement-Learning-for-Adaptive-MCMC"
+preferred-citation:
+  type: article
+  authors:
+  - family-names: "Wang"
+    given-names: "Congye"
+  - family-names: "Chen"
+    given-names: "Wilson"
+  - family-names: "Kanagawa"
+    given-names: "Heishiro"
+  - family-names: "Oates"
+    given-names: "Chris"
+  journal: "arXiv preprint arXiv:2405.13574"
+  title: "Reinforcement Learning for Adaptive MCMC"
+  year: 2024
