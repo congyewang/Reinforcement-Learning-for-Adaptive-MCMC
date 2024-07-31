@@ -42,6 +42,7 @@ ylabel('Reward $r_n$')
 
 initial_policy = load(sprintf('%s/%s', policy_path, 'policy1.mat')).actions;
 subplot(3,4,2)
+box on;
 plot(x_vals,initial_policy(:,1),format1)
 xticks([])
 ylabel('$\phi(x)$')
@@ -55,6 +56,7 @@ if polyline
 end
 
 subplot(3,4,6)
+box on;
 for i = n_break1:n_break2
     median_policy = load(sprintf('%s/policy%d.mat', policy_path, i)).actions;
     patchline(x_vals,median_policy(:,1),'edgecolor','r','edgealpha',0.2); hold on
@@ -71,6 +73,7 @@ if polyline
 end
 
 subplot(3,4,10)
+box on;
 for i = n_break2+1:140
     final_policy = load(sprintf('%s/policy%d.mat', policy_path, i)).actions;
     patchline(x_vals,final_policy(:,1),'edgecolor','b','edgealpha',0.2); hold on
